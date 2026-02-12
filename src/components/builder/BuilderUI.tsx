@@ -60,7 +60,9 @@ export const BuilderUI: React.FC<BuilderUIProps> = ({ baseSettings, setBaseSetti
     settings,
     updateSettings,
     hiddenBlockIds,
-    toggleBlockVisibility
+    toggleBlockVisibility,
+    applyBaseLayer,
+    isBatchGenerating
   } = useWorldStore();
   
   const navigate = useNavigate();
@@ -747,51 +749,49 @@ export const BuilderUI: React.FC<BuilderUIProps> = ({ baseSettings, setBaseSetti
                   />
                 </div>
 
-                {/* Base Layer Settings */}
+                {/* Base Layer */}
                 <div className="pt-4 mt-4 border-t border-slate-700">
                   <h3 className="mb-3 text-sm font-bold text-gray-300">Base Layer</h3>
-                  
-                  <div className="flex items-center justify-between mb-3">
-                    <label className="text-sm font-medium text-gray-400">Enable Base</label>
-                    <button
-                      onClick={() => setBaseSettings(s => ({ ...s, enabled: !s.enabled }))}
-                      className={`w-11 h-6 rounded-full transition-colors relative ${baseSettings.enabled ? 'bg-blue-600' : 'bg-slate-700'}`}
-                    >
-                      <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-all shadow-sm ${baseSettings.enabled ? 'left-6' : 'left-1'}`} />
-                    </button>
+                  <div className="mb-3 space-y-2">
+                    <label className="text-xs text-gray-400">Base Block</label>
+                    <div className="flex gap-2">
+                       <button 
+                         onClick={() => setBaseSettings(s => ({ ...s, blockId: selectedBlockId }))}
+                         className="px-2 py-1 text-xs text-white bg-blue-600 rounded hover:bg-blue-500"
+                       >
+                         Set to Selected ({palette.find(b => b.id === selectedBlockId)?.name || selectedBlockId})
+                       </button>
+                    </div>
                   </div>
 
-                  {baseSettings.enabled && (
-                    <>
-                      <div className="mb-3 space-y-2">
-                        <label className="text-xs text-gray-400">Base Block</label>
-                        <div className="flex gap-2">
-                           <button 
-                             onClick={() => setBaseSettings(s => ({ ...s, blockId: selectedBlockId }))}
-                             className="px-2 py-1 text-xs text-white bg-blue-600 rounded hover:bg-blue-500"
-                           >
-                             Set to Selected ({palette.find(b => b.id === selectedBlockId)?.name || selectedBlockId})
-                           </button>
-                        </div>
-                      </div>
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between text-xs text-gray-400">
+                      <span>Size</span>
+                      <span className="font-mono">{baseSettings.size}x{baseSettings.size}</span>
+                    </div>
+                    <div className="grid grid-cols-4 gap-2">
+                      {[10, 12, 16, 20, 24, 32, 40, 48].map((s) => (
+                        <button
+                          key={s}
+                          onClick={() => setBaseSettings((prev) => ({ ...prev, size: s }))}
+                          className={`px-2 py-1 text-xs rounded border ${baseSettings.size === s ? 'bg-blue-600 text-white border-blue-500' : 'bg-slate-800 text-gray-200 border-slate-700 hover:bg-slate-700'}`}
+                        >
+                          {s}x{s}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
 
-                      <div className="space-y-2">
-                        <div className="flex justify-between text-xs text-gray-400">
-                          <span>Size</span>
-                          <span>{baseSettings.size}x{baseSettings.size}</span>
-                        </div>
-                        <input
-                          type="range"
-                          min="10"
-                          max="100"
-                          step="2"
-                          value={baseSettings.size}
-                          onChange={(e) => setBaseSettings(s => ({ ...s, size: parseInt(e.target.value) }))}
-                          className="w-full h-1.5 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-blue-500"
-                        />
-                      </div>
-                    </>
-                  )}
+                  <div className="mt-3">
+                    <button
+                      onClick={() => applyBaseLayer(baseSettings.blockId, baseSettings.size)}
+                      disabled={isBatchGenerating}
+                      className={`flex items-center gap-2 px-3 py-1 text-sm rounded ${isBatchGenerating ? 'bg-slate-700 text-gray-300 cursor-not-allowed' : 'bg-blue-600 text-white hover:bg-blue-500'}`}
+                    >
+                      {isBatchGenerating ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+                      {isBatchGenerating ? 'Generating...' : 'Generate Base'}
+                    </button>
+                  </div>
                 </div>
               </div>
             </motion.div>

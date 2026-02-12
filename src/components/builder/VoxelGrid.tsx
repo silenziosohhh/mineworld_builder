@@ -1,132 +1,154 @@
-import React, { useMemo, useState, memo } from 'react';
+import React, { useMemo, useState, memo, useEffect } from 'react';
 import { useWorldStore } from '../../store/worldStore';
 import { Instances, Instance, useTexture, Grid } from '@react-three/drei';
 import type { ThreeEvent } from '@react-three/fiber';
-import { snapToGrid } from '../../engine/voxelEngine';
 import * as THREE from 'three';
 import type { BlockData, BlockDefinition, Vector3Tuple } from '../../engine/types';
 
 const boxGeometry = new THREE.BoxGeometry(1, 1, 1);
 
-interface GridBlockProps {
-position: Vector3Tuple;
-color?: string;
-isBase?: boolean;
+// Y dei layer:
+// - base: center = -0.5 (top a 0)
+// - costruzione: center = 0.5, 1.5, 2.5...
+const EPS_Y = 0.001;
+
+function snapBuildY(y: number): number {
+  return Math.round(y - 0.5) + 0.5;
 }
 
-// Usa memo per evitare re-render inutili di migliaia di blocchi
-const GridBlock: React.FC<GridBlockProps> = memo(({ position, color, isBase }) => {
-const [hovered, setHover] = useState(false);
-const addBlock = useWorldStore((state) => state.addBlock);
-const removeBlock = useWorldStore((state) => state.removeBlock);
-const setBaseEmpty = useWorldStore((state) => state.setBaseEmpty);
-const tool = useWorldStore((state) => state.tool);
-// NON sottoscriviamo a isDraggingUI qui per evitare re-render di massa
-// Lo leggeremo direttamente dallo store quando serve
+function snapBuildPos(pos: Vector3Tuple): Vector3Tuple {
+  const [x, y, z] = pos;
+  return [Math.round(x), snapBuildY(y), Math.round(z)];
+}
 
-const handleClick = (e: ThreeEvent<any>) => {
-e.stopPropagation();
-if (useWorldStore.getState().isDraggingUI) return;
+function snapBasePos(pos: Vector3Tuple): Vector3Tuple {
+  const [x, , z] = pos;
+  return [Math.round(x), -0.5, Math.round(z)];
+}
+
+interface GridBlockProps {
+  position: Vector3Tuple;
+  color?: string;
+  isBase?: boolean;
+}
+
+const GridBlock: React.FC<GridBlockProps> = memo(({ position, color, isBase }) => {
+  const [hovered, setHover] = useState(false);
+
+  const addBlock = useWorldStore((s) => s.addBlock);
+  const removeBlock = useWorldStore((s) => s.removeBlock);
+  const setBaseEmpty = useWorldStore((s) => s.setBaseEmpty);
+  const tool = useWorldStore((s) => s.tool);
+
+  const handleClick = (e: ThreeEvent<any>) => {
+    e.stopPropagation();
+    if (useWorldStore.getState().isDraggingUI) return;
+
+    const self = isBase ? snapBasePos(position) : snapBuildPos(position);
 
     if (tool === 'erase') {
       if (isBase) {
-        setBaseEmpty(position);
-        return;
+        setBaseEmpty(self);
+      } else {
+        removeBlock(self);
       }
-      removeBlock(position);
       return;
     }
 
-if (tool !== 'build') return;
+    if (tool !== 'build') return;
 
-if (e.altKey || e.shiftKey) {
-  if (isBase) {
-    setBaseEmpty(position);
-    return;
-  }
-  removeBlock(position);
-  return;
-}
+    if (e.altKey || e.shiftKey) {
+      if (isBase) {
+        setBaseEmpty(self);
+      } else {
+        removeBlock(self);
+      }
+      return;
+    }
 
-if (e.face?.normal) {
-  const { x, y, z } = e.face.normal;
-  const [px, py, pz] = position;
-  addBlock([px + x, py + y, pz + z]);
-}
+    if (e.face?.normal) {
+      const n = e.face.normal;
+      const target: Vector3Tuple = [self[0] + n.x, self[1] + n.y, self[2] + n.z];
+      addBlock(snapBuildPos(target));
+    }
+  };
 
-
-};
-
-return (
-<Instance
-position={position}
-onPointerOver={(e) => { e.stopPropagation(); if (!useWorldStore.getState().isDraggingUI) setHover(true); }}
-onPointerOut={() => setHover(false)}
-onClick={handleClick}
-color={hovered ? '#43ff32' : (color || 'white')}
-/>
-);
+  return (
+    <Instance
+      position={position}
+      onPointerOver={(e) => {
+        e.stopPropagation();
+        if (!useWorldStore.getState().isDraggingUI) setHover(true);
+      }}
+      onPointerOut={() => setHover(false)}
+      onClick={handleClick}
+      color={hovered ? '#43ff32' : (color || 'white')}
+    />
+  );
 });
 
 const TexturedBlockLayer: React.FC<{
-blockDef: BlockDefinition;
-blocks: BlockData[];
-isBase?: boolean;
+  blockDef: BlockDefinition;
+  blocks: BlockData[];
+  isBase?: boolean;
 }> = ({ blockDef, blocks, isBase }) => {
-if (!blockDef.texture || blocks.length === 0) return null;
+  if (!blockDef.texture || blocks.length === 0) return null;
 
-const texture = useTexture(blockDef.texture, (tex) => {
-tex.magFilter = THREE.NearestFilter;
-tex.minFilter = THREE.NearestFilter;
-tex.colorSpace = THREE.SRGBColorSpace;
-});
+  const texture = useTexture(blockDef.texture, (tex) => {
+    tex.magFilter = THREE.NearestFilter;
+    tex.minFilter = THREE.NearestFilter;
+    tex.colorSpace = THREE.SRGBColorSpace;
+  });
 
-return ( <Instances range={blocks.length} geometry={boxGeometry} castShadow receiveShadow> <meshStandardMaterial map={texture} color="white" />
-{blocks.map((block) => ( <GridBlock
-      key={block.id}
-      position={block.position}
-      isBase={isBase}
-    />
-))} </Instances>
-);
+  return (
+    <Instances range={blocks.length} geometry={boxGeometry} castShadow receiveShadow>
+      <meshStandardMaterial map={texture} color="white" />
+      {blocks.map((b) => (
+        <GridBlock key={b.id} position={b.position as Vector3Tuple} isBase={isBase} />
+      ))}
+    </Instances>
+  );
 };
 
 const ColoredBlockLayer: React.FC<{
-blockDef: BlockDefinition;
-blocks: BlockData[];
-isBase?: boolean;
+  blockDef: BlockDefinition;
+  blocks: BlockData[];
+  isBase?: boolean;
 }> = ({ blockDef, blocks, isBase }) => {
-if (blocks.length === 0) return null;
+  if (blocks.length === 0) return null;
 
-return ( <Instances range={blocks.length} geometry={boxGeometry} castShadow receiveShadow> <meshStandardMaterial color="white" />
-{blocks.map((block) => ( <GridBlock
-      key={block.id}
-      position={block.position}
-      color={blockDef.color}
-      isBase={isBase}
-    />
-))} </Instances>
-);
+  return (
+    <Instances range={blocks.length} geometry={boxGeometry} castShadow receiveShadow>
+      <meshStandardMaterial color="white" />
+      {blocks.map((b) => (
+        <GridBlock
+          key={b.id}
+          position={b.position as Vector3Tuple}
+          color={blockDef.color}
+          isBase={isBase}
+        />
+      ))}
+    </Instances>
+  );
 };
 
 class LayerErrorBoundary extends React.Component<
-{ children: React.ReactNode; fallback: React.ReactNode },
-{ hasError: boolean }
-
+  { children: React.ReactNode; fallback: React.ReactNode },
+  { hasError: boolean }
 > {
   state = { hasError: false };
 
-static getDerivedStateFromError() {
-return { hasError: true };
-}
+  static getDerivedStateFromError() {
+    return { hasError: true };
+  }
 
-componentDidCatch(error: any) {
-console.error('Errore caricamento texture:', error);
-}
+  componentDidCatch(error: any) {
+    console.error('Errore caricamento texture:', error);
+  }
 
-render() {
-return this.state.hasError ? this.props.fallback : this.props.children;
-}
+  render() {
+    return this.state.hasError ? this.props.fallback : this.props.children;
+  }
 }
 
 const GrassBlockLayer: React.FC<{
@@ -136,23 +158,14 @@ const GrassBlockLayer: React.FC<{
 }> = ({ blockDef, blocks, isBase }) => {
   if (!blockDef.texture || blocks.length === 0) return null;
 
-  // Assumiamo che la texture definita sia quella laterale (es. grass_block_side.png)
-  // e cerchiamo di derivare le altre (top e dirt)
   const sideUrl = blockDef.texture;
   const topUrl = sideUrl.replace('_side', '_top');
   const bottomUrl = sideUrl.replace('grass_block_side', 'dirt');
 
-  const textures = useTexture([
-    sideUrl,   // Right
-    sideUrl,   // Left
-    topUrl,    // Top
-    bottomUrl, // Bottom
-    sideUrl,   // Front
-    sideUrl    // Back
-  ]);
+  const textures = useTexture([sideUrl, sideUrl, topUrl, bottomUrl, sideUrl, sideUrl]);
 
   React.useLayoutEffect(() => {
-    textures.forEach(tex => {
+    textures.forEach((tex) => {
       tex.magFilter = THREE.NearestFilter;
       tex.minFilter = THREE.NearestFilter;
       tex.colorSpace = THREE.SRGBColorSpace;
@@ -167,8 +180,8 @@ const GrassBlockLayer: React.FC<{
       <meshStandardMaterial attach="material-3" map={textures[3]} />
       <meshStandardMaterial attach="material-4" map={textures[4]} />
       <meshStandardMaterial attach="material-5" map={textures[5]} />
-      {blocks.map((block) => (
-        <GridBlock key={block.id} position={block.position} isBase={isBase} />
+      {blocks.map((b) => (
+        <GridBlock key={b.id} position={b.position as Vector3Tuple} isBase={isBase} />
       ))}
     </Instances>
   );
@@ -179,35 +192,43 @@ const BaseLayer: React.FC<{
   blockId: string;
   size: number;
 }> = memo(({ enabled, blockId, size }) => {
-  const palette = useWorldStore((state) => state.palette);
-  const blocksMap = useWorldStore((state) => state.blocks);
-  
-  const baseBlocks = useMemo(() => {
-    if (!enabled || !blockId) return [];
+  const palette = useWorldStore((s) => s.palette);
+  const blocksMap = useWorldStore((s) => s.blocks);
 
-    // Crea un set di posizioni occupate dai blocchi utente
+  const baseBlocks = useMemo(() => {
+    if (!enabled || !blockId || size <= 0) return [];
+
+    // FIX #1: bounds che producono ESATTAMENTE size celle (pari e dispari)
+    const start = -Math.floor(size / 2);
+    const end = start + size - 1;
+
+    // FIX #2: ignora i marker '_base_empty' quando calcoli l'occupato,
+    // altrimenti cambiando size ti “buchi” la base con buchi fantasma.
     const occupied = new Set<string>();
     Object.values(blocksMap).forEach((b) => {
-      // Controlla SOLO se c'è un blocco (o un "vuoto") esattamente al livello del pavimento (-0.5)
-      if (Math.abs(b.position[1] + 0.5) < 0.01) {
-        occupied.add(`${b.position[0]},${b.position[2]}`);
+      if (b.type === '_base_empty') return;
+      const p = b.position as Vector3Tuple;
+      if (Math.abs(p[1] + 0.5) < 0.01) {
+        occupied.add(`${Math.round(p[0])},${Math.round(p[2])}`);
       }
     });
 
-    const blocks: BlockData[] = [];
-    const half = Math.floor(size / 2);
-    for (let x = -half; x < half; x++) {
-      for (let z = -half; z < half; z++) {
-        if (occupied.has(`${x},${z}`)) continue; // Salta se c'è già un blocco
-        blocks.push({
+    const out: BlockData[] = [];
+
+    for (let x = start; x <= end; x++) {
+      for (let z = start; z <= end; z++) {
+        if (occupied.has(`${x},${z}`)) continue;
+        out.push({
           id: `base-${x}-${z}`,
           type: blockId,
-          position: [x, -0.5, z],
+          position: [x + 0.5, -0.5, z + 0.5],
+          // position: [x, -0.5, z],
           rotation: [0, 0, 0]
         } as any);
       }
     }
-    return blocks;
+
+    return out;
   }, [enabled, blockId, size, blocksMap]);
 
   if (!enabled || baseBlocks.length === 0) return null;
@@ -217,9 +238,7 @@ const BaseLayer: React.FC<{
 
   if (blockId === 'grass_block' && blockDef.texture) {
     return (
-      <LayerErrorBoundary
-        fallback={<ColoredBlockLayer blockDef={blockDef} blocks={baseBlocks} isBase />}
-      >
+      <LayerErrorBoundary fallback={<ColoredBlockLayer blockDef={blockDef} blocks={baseBlocks} isBase />}>
         <GrassBlockLayer blockDef={blockDef} blocks={baseBlocks} isBase />
       </LayerErrorBoundary>
     );
@@ -227,140 +246,138 @@ const BaseLayer: React.FC<{
 
   if (blockDef.texture) {
     return (
-      <LayerErrorBoundary
-        fallback={<ColoredBlockLayer blockDef={blockDef} blocks={baseBlocks} isBase />}
-      >
+      <LayerErrorBoundary fallback={<ColoredBlockLayer blockDef={blockDef} blocks={baseBlocks} isBase />}>
         <TexturedBlockLayer blockDef={blockDef} blocks={baseBlocks} isBase />
       </LayerErrorBoundary>
     );
   }
 
-  return (
-    <ColoredBlockLayer
-      blockDef={blockDef}
-      blocks={baseBlocks}
-      isBase
-    />
-  );
+  return <ColoredBlockLayer blockDef={blockDef} blocks={baseBlocks} isBase />;
 });
+
+const BaseLayerGenerator: React.FC<{
+  enabled: boolean;
+  blockId: string;
+  size: number;
+}> = ({ enabled, blockId, size }) => {
+  const addBlock = useWorldStore((state) => state.addBlock);
+  const blocksMap = useWorldStore((state) => state.blocks);
+  useEffect(() => {
+    if (!enabled || !blockId || size <= 0) return;
+    const start = -Math.floor(size / 2);
+    const end = start + size - 1;
+    for (let x = start; x <= end; x++) {
+      for (let z = start; z <= end; z++) {
+        const key = `${x},${0.5},${z}`;
+        if (!blocksMap[key]) {
+          addBlock([x, 0.5, z], blockId, false);
+        }
+      }
+    }
+  }, [enabled, blockId, size]); 
+  return null;
+};
 
 export const VoxelGrid: React.FC<{
   baseSettings?: { enabled: boolean; blockId: string; size: number };
 }> = ({ baseSettings }) => {
-const blocksMap = useWorldStore((state) => state.blocks);
-const palette = useWorldStore((state) => state.palette);
-const addBlock = useWorldStore((state) => state.addBlock);
-  const tool = useWorldStore((state) => state.tool);
-  const settings = useWorldStore((state) => state.settings);
-  const hiddenBlockIds = useWorldStore((state) => state.hiddenBlockIds);
+  const blocksMap = useWorldStore((s) => s.blocks);
+  const palette = useWorldStore((s) => s.palette);
+  const addBlock = useWorldStore((s) => s.addBlock);
+  const tool = useWorldStore((s) => s.tool);
+  const settings = useWorldStore((s) => s.settings);
+  const hiddenBlockIds = useWorldStore((s) => s.hiddenBlockIds);
 
   const blocksByType = useMemo(() => {
     const groups: Record<string, BlockData[]> = {};
+
     Object.values(blocksMap).forEach((block) => {
-      if (block.type === '_base_empty') return; // Non renderizzare i blocchi vuoti
-      if (hiddenBlockIds.includes(block.type)) return; // Non renderizzare blocchi nascosti
-      if (!groups[block.type]) groups[block.type] = [];
-      groups[block.type].push(block);
+      if (block.type === '_base_empty') return;
+      if (hiddenBlockIds.includes(block.type)) return;
+
+      const p = snapBuildPos(block.position as Vector3Tuple);
+      const snapped = { ...block, position: p } as BlockData;
+
+      if (!groups[snapped.type]) groups[snapped.type] = [];
+      groups[snapped.type].push(snapped);
     });
+
     return groups;
   }, [blocksMap, hiddenBlockIds]);
 
-const handlePlaneInteraction = (e: ThreeEvent<any>) => {
-if (tool !== 'build') return;
-if (useWorldStore.getState().isDraggingUI) return;
+  const handlePlaneInteraction = (e: ThreeEvent<any>) => {
+    if (tool !== 'build') return;
+    if (useWorldStore.getState().isDraggingUI) return;
 
+    e.stopPropagation();
+    if (e.altKey || e.shiftKey) return;
 
-e.stopPropagation();
-if (e.altKey || e.shiftKey) return;
+    const x = Math.round(e.point.x);
+    const z = Math.round(e.point.z);
+    addBlock([x, 0.5, z]);
+  };
 
-const [x, , z] = snapToGrid(e.point.x, 0, e.point.z);
-addBlock([x, 0.5, z]);
+  return ( <group>
 
+      {Object.entries(blocksByType).map(([type, blocks]) => {
+        const blockDef = palette.find((b) => b.id === type);
+        if (!blockDef) return null;
 
-};
+        if (type === 'grass_block' && blockDef.texture) {
+          return (
+            <LayerErrorBoundary
+              key={type}
+              fallback={<ColoredBlockLayer blockDef={blockDef} blocks={blocks} />}
+            >
+              <GrassBlockLayer blockDef={blockDef} blocks={blocks} />
+            </LayerErrorBoundary>
+          );
+        }
 
-return ( <group>
-  {baseSettings && <BaseLayer {...baseSettings} />}
-{Object.entries(blocksByType).map(([type, blocks]) => {
-const blockDef = palette.find((b) => b.id === type);
-if (!blockDef) return null;
+        if (blockDef.texture) {
+          return (
+            <LayerErrorBoundary
+              key={type}
+              fallback={<ColoredBlockLayer blockDef={blockDef} blocks={blocks} />}
+            >
+              <TexturedBlockLayer blockDef={blockDef} blocks={blocks} />
+            </LayerErrorBoundary>
+          );
+        }
 
-    if (type === 'grass_block' && blockDef.texture) {
-      return (
-        <LayerErrorBoundary
-          key={type}
-          fallback={
-            <ColoredBlockLayer
-              blockDef={blockDef}
-              blocks={blocks}
-            />
-          }
-        >
-          <GrassBlockLayer blockDef={blockDef} blocks={blocks} />
-        </LayerErrorBoundary>
-      );
-    }
+        return <ColoredBlockLayer key={type} blockDef={blockDef} blocks={blocks} />;
+      })}
 
-    if (blockDef.texture) {
-      return (
-        <LayerErrorBoundary
-          key={type}
-          fallback={
-            <ColoredBlockLayer
-              blockDef={blockDef}
-              blocks={blocks}
-            />
-          }
-        >
-          <TexturedBlockLayer
-            blockDef={blockDef}
-            blocks={blocks}
-          />
-        </LayerErrorBoundary>
-      );
-    }
+      <mesh
+        rotation={[-Math.PI / 2, 0, 0]}
+        position={[0, 0, 0]}
+        onClick={(e) => {
+          if (e.delta <= 5) handlePlaneInteraction(e);
+        }}
+        onPointerMove={(e) => {
+          if (e.buttons === 1) handlePlaneInteraction(e);
+        }}
+        receiveShadow
+      >
+        <planeGeometry args={[10000, 10000]} />
+        <meshStandardMaterial opacity={0} transparent depthWrite={false} />
+      </mesh>
 
-    return (
-      <ColoredBlockLayer
-        key={type}
-        blockDef={blockDef}
-        blocks={blocks}
-      />
-    );
-  })}
-
-  <mesh
-    rotation={[-Math.PI / 2, 0, 0]}
-    position={[0, -0.01, 0]}
-    onClick={(e) => { if (e.delta <= 5) handlePlaneInteraction(e); }}
-    onPointerMove={(e) => { if (e.buttons === 1) handlePlaneInteraction(e); }}
-    receiveShadow
-  >
-    <planeGeometry args={[10000, 10000]} />
-    <meshStandardMaterial
-      color="#e5e7eb"
-      opacity={0}
-      transparent
-      depthWrite={false}
-    />
-  </mesh>
-
-  {settings.showGrid && (
-    <Grid
-      position={[0, -0.01, 0]}
-      args={[10.5, 10.5]}
-      cellSize={1}
-      cellThickness={0.6}
-      cellColor="#6f6f6f"
-      sectionSize={5}
-      sectionThickness={1}
-      sectionColor="#1c1c1c"
-      fadeDistance={500}
-      infiniteGrid
-      side={THREE.DoubleSide}
-    />
-  )}
-</group>
-
-);
+      {settings.showGrid && (
+        <Grid
+          position={[0.5, EPS_Y, 0.5]}
+          args={[10, 10]}
+          cellSize={1}
+          cellThickness={0.6}
+          cellColor="#6f6f6f"
+          sectionSize={5}
+          sectionThickness={1}
+          sectionColor="#1c1c1c"
+          fadeDistance={500}
+          infiniteGrid
+          side={THREE.DoubleSide}
+        />
+      )}
+    </group>
+  );
 };

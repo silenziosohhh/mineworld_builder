@@ -37,12 +37,16 @@ interface WorldState {
   setMaterialListOpen: (isOpen: boolean) => void;
   isDraggingUI: boolean;
   setDraggingUI: (isDragging: boolean) => void;
+  isBatchGenerating: boolean;
   settings: WorldSettings;
   updateSettings: (settings: Partial<WorldSettings>) => void;
   setCurrentView: (view: 'perspective' | 'top' | 'front') => void;
   addBlock: (position: Vector3Tuple, type?: string, replace?: boolean) => void;
   removeBlock: (position: Vector3Tuple) => void;
   setBaseEmpty: (position: Vector3Tuple) => void;
+  applyBaseLayer: (blockId: string, size: number) => void;
+  baseLayerApplied: boolean;
+  baseLayerConfig?: { blockId: string; size: number };
   resetWorld: () => void;
   setSelectedBlock: (id: string) => void;
   setMinecraftVersion: (version: string) => Promise<void>;
@@ -118,6 +122,7 @@ export const useWorldStore = create<WorldState>()(
       setMaterialListOpen: (isOpen) => set({ isMaterialListOpen: isOpen }),
       isDraggingUI: false,
       setDraggingUI: (isDragging) => set({ isDraggingUI: isDragging }),
+      isBatchGenerating: false,
       settings: {
         shadows: true,
         showGrid: true,
@@ -130,6 +135,8 @@ export const useWorldStore = create<WorldState>()(
       setCurrentView: (view) => set({ currentView: view }),
       selectedColor: '#5b8c38',
       hiddenBlockIds: [],
+      baseLayerApplied: false,
+      baseLayerConfig: undefined,
       toggleBlockVisibility: (blockType) => set((state) => {
         const isHidden = state.hiddenBlockIds.includes(blockType);
         return {
@@ -138,6 +145,26 @@ export const useWorldStore = create<WorldState>()(
             : [...state.hiddenBlockIds, blockType]
         };
       }),
+      applyBaseLayer: (blockId, size) =>
+        set((state) => {
+          const add = useWorldStore.getState().addBlock;
+          const start = -Math.floor(size / 2);
+          const end = start + size - 1;
+          // FIX: Silence audio during batch generation to avoid WebAudio errors
+          useWorldStore.setState({ isBatchGenerating: true });
+          for (let x = start; x <= end; x++) {
+            for (let z = start; z <= end; z++) {
+              // FIX: Generate base cells using the same placement logic (first build layer at Y=0.5).
+              const pos: Vector3Tuple = [x, 0.5, z];
+              add(pos, blockId, false);
+            }
+          }
+          useWorldStore.setState({ isBatchGenerating: false });
+          return {
+            baseLayerApplied: true,
+            baseLayerConfig: { blockId, size },
+          };
+        }),
       setColor: (color) => {
         const block = get().palette.find(b => b.color === color);
         if (block) set({ selectedBlockId: block.id });
@@ -184,7 +211,7 @@ export const useWorldStore = create<WorldState>()(
           const selectedBlock =
             state.palette.find((b) => b.id === blockId) || state.palette[0];
 
-          playSound('place');
+          if (!state.isBatchGenerating) playSound('place');
 
           return {
             blocks: {
@@ -209,7 +236,7 @@ export const useWorldStore = create<WorldState>()(
           const key = getBlockKey(position);
           // eslint-disable-next-line @typescript-eslint/no-unused-vars
           const { [key]: removed, ...rest } = state.blocks;
-          playSound('break');
+          if (!state.isBatchGenerating) playSound('break');
           return {
             blocks: rest,
             history: {
@@ -307,12 +334,11 @@ export const useWorldStore = create<WorldState>()(
         currentView: state.currentView,
         isSidebarOpen: state.isSidebarOpen,
         isMaterialListOpen: state.isMaterialListOpen,
-        // Non persistiamo isDraggingUI perché è uno stato temporaneo
         selectedColor: state.selectedColor,
         hiddenBlockIds: state.hiddenBlockIds,
+        baseLayerApplied: state.baseLayerApplied,
+        baseLayerConfig: state.baseLayerConfig,
         settings: state.settings,
-        // Escludiamo 'history' dal localStorage per evitare che diventi troppo grande
-        // e causi problemi di quota o rallentamenti
       }),
       migrate: (persistedState, version) => {
         const state = persistedState as any;
