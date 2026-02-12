@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useWorldStore } from '../../store/worldStore';
 import { MINECRAFT_VERSIONS } from '../../engine/voxelEngine';
-import { ChevronLeft, ChevronRight, Box, Layers, Trash2, Loader2, Save, Eye, Hammer, Search, Eraser } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Box, Layers, Trash2, Loader2, Save, Hand, Hammer, Search, Eraser } from 'lucide-react';
 import { motion } from 'framer-motion';
 
 export const BuilderUI: React.FC = () => {
@@ -114,30 +114,6 @@ export const BuilderUI: React.FC = () => {
         </div>
         
         <div className="flex items-center gap-2">
-          <div className="flex items-center gap-1 bg-slate-800 rounded p-1 border border-slate-600 mr-4">
-            <button
-              onClick={() => setTool('view')}
-              className={`p-1.5 rounded transition-colors ${tool === 'view' ? 'bg-blue-600 text-white' : 'text-gray-400 hover:text-white'}`}
-              title="View Mode (1)"
-            >
-              <Eye className="w-4 h-4" />
-            </button>
-            <button
-              onClick={() => setTool('build')}
-              className={`p-1.5 rounded transition-colors ${tool === 'build' ? 'bg-blue-600 text-white' : 'text-gray-400 hover:text-white'}`}
-              title="Build Mode (2)"
-            >
-              <Hammer className="w-4 h-4" />
-            </button>
-            <button
-              onClick={() => setTool('erase')}
-              className={`p-1.5 rounded transition-colors ${tool === 'erase' ? 'bg-blue-600 text-white' : 'text-gray-400 hover:text-white'}`}
-              title="Eraser Mode (4)"
-            >
-              <Eraser className="w-4 h-4" />
-            </button>
-          </div>
-
           <button 
             onClick={handleManualSave}
             disabled={isSaving}
@@ -152,6 +128,44 @@ export const BuilderUI: React.FC = () => {
             className="bg-red-600/80 hover:bg-red-600 text-white px-3 py-1 rounded text-sm flex items-center gap-2 transition-colors"
           >
             <Trash2 className="w-4 h-4" /> Clear All
+          </button>
+        </div>
+      </div>
+
+      <div className="absolute top-14 left-1/2 -translate-x-1/2 pointer-events-auto z-40">
+        <div className="flex items-center gap-1 bg-slate-900/70 rounded-lg p-1 border border-slate-600 backdrop-blur-md shadow-lg">
+          <button
+            onClick={() => setTool('view')}
+            className={`relative p-2 rounded transition-colors ${tool === 'view' ? 'bg-blue-600 text-white' : 'text-gray-300 hover:text-white hover:bg-slate-800/70'}`}
+            title="Pan (V / 1)"
+            type="button"
+          >
+            <Hand className="w-4 h-4" />
+            <span className="absolute -bottom-1 -right-1 text-[10px] leading-none px-1 py-0.5 rounded bg-black/70 border border-white/10 text-white/90">
+              V
+            </span>
+          </button>
+          <button
+            onClick={() => setTool('build')}
+            className={`relative p-2 rounded transition-colors ${tool === 'build' ? 'bg-blue-600 text-white' : 'text-gray-300 hover:text-white hover:bg-slate-800/70'}`}
+            title="Build (B / 2)"
+            type="button"
+          >
+            <Hammer className="w-4 h-4" />
+            <span className="absolute -bottom-1 -right-1 text-[10px] leading-none px-1 py-0.5 rounded bg-black/70 border border-white/10 text-white/90">
+              B
+            </span>
+          </button>
+          <button
+            onClick={() => setTool('erase')}
+            className={`relative p-2 rounded transition-colors ${tool === 'erase' ? 'bg-blue-600 text-white' : 'text-gray-300 hover:text-white hover:bg-slate-800/70'}`}
+            title="Erase (E / 3 / 4)"
+            type="button"
+          >
+            <Eraser className="w-4 h-4" />
+            <span className="absolute -bottom-1 -right-1 text-[10px] leading-none px-1 py-0.5 rounded bg-black/70 border border-white/10 text-white/90">
+              E
+            </span>
           </button>
         </div>
       </div>

@@ -9,12 +9,11 @@ import type { BlockData, BlockDefinition, Vector3Tuple } from '../../engine/type
 const boxGeometry = new THREE.BoxGeometry(1, 1, 1);
 
 interface GridBlockProps {
-id: string;
 position: Vector3Tuple;
 color?: string;
 }
 
-const GridBlock: React.FC<GridBlockProps> = ({ id, position, color }) => {
+const GridBlock: React.FC<GridBlockProps> = ({ position, color }) => {
 const [hovered, setHover] = useState(false);
 const addBlock = useWorldStore((state) => state.addBlock);
 const removeBlock = useWorldStore((state) => state.removeBlock);
@@ -70,7 +69,6 @@ tex.colorSpace = THREE.SRGBColorSpace;
 return ( <Instances range={blocks.length} geometry={boxGeometry}> <meshStandardMaterial map={texture} color="white" />
 {blocks.map((block) => ( <GridBlock
       key={block.id}
-      id={block.id}
       position={block.position}
     />
 ))} </Instances>
@@ -86,7 +84,6 @@ if (blocks.length === 0) return null;
 return ( <Instances range={blocks.length} geometry={boxGeometry}> <meshStandardMaterial color="white" />
 {blocks.map((block) => ( <GridBlock
       key={block.id}
-      id={block.id}
       position={block.position}
       color={blockDef.color}
     />
@@ -118,7 +115,6 @@ export const VoxelGrid: React.FC = () => {
 const blocksMap = useWorldStore((state) => state.blocks);
 const palette = useWorldStore((state) => state.palette);
 const addBlock = useWorldStore((state) => state.addBlock);
-const removeBlock = useWorldStore((state) => state.removeBlock);
 const tool = useWorldStore((state) => state.tool);
 
 const blocksByType = useMemo(() => {

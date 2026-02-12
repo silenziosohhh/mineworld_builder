@@ -9,6 +9,7 @@ import { Plus, Box } from 'lucide-react';
 export const DashboardPage: React.FC = () => {
   const { user } = useAuthStore();
   const { blocks, resetWorld } = useWorldStore();
+  const blocksCount = Object.keys(blocks).length;
 
   return (
     <div className="max-w-7xl mx-auto px-4 py-8">
@@ -33,7 +34,7 @@ export const DashboardPage: React.FC = () => {
           </div>
           <h3 className="text-xl font-bold mb-2">My Creative World</h3>
           <p className="text-gray-500 text-sm mb-4">
-            {blocks.length} blocks placed • Last edited just now
+            {blocksCount} blocks placed • Last edited just now
           </p>
           <div className="flex gap-2">
             <Link to="/builder" className="w-full">
