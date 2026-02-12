@@ -7,6 +7,14 @@ import type { BlockData, BlockDefinition, Vector3Tuple } from '../../engine/type
 
 const boxGeometry = new THREE.BoxGeometry(1, 1, 1);
 
+// Geometria per le torce (sottile e centrata in basso)
+const torchGeometry = new THREE.BoxGeometry(0.15, 0.6, 0.15);
+torchGeometry.translate(0, -0.2, 0);
+
+// Geometria per slab/scale (metà altezza)
+const slabGeometry = new THREE.BoxGeometry(1, 0.5, 1);
+slabGeometry.translate(0, -0.25, 0);
+
 // Y dei layer:
 // - base: center = -0.5 (top a 0)
 // - costruzione: center = 0.5, 1.5, 2.5...
@@ -30,14 +38,17 @@ interface GridBlockProps {
   position: Vector3Tuple;
   color?: string;
   isBase?: boolean;
+  blockId?: string;
 }
 
-const GridBlock: React.FC<GridBlockProps> = memo(({ position, color, isBase }) => {
+const GridBlock: React.FC<GridBlockProps> = memo(({ position, color, isBase, blockId }) => {
   const [hovered, setHover] = useState(false);
 
   const addBlock = useWorldStore((s) => s.addBlock);
   const removeBlock = useWorldStore((s) => s.removeBlock);
   const setBaseEmpty = useWorldStore((s) => s.setBaseEmpty);
+  const setSelectedBlock = useWorldStore((s) => s.setSelectedBlock);
+  const setTool = useWorldStore((s) => s.setTool);
   const tool = useWorldStore((s) => s.tool);
 
   const handleClick = (e: ThreeEvent<any>) => {
@@ -73,6 +84,16 @@ const GridBlock: React.FC<GridBlockProps> = memo(({ position, color, isBase }) =
     }
   };
 
+  const handlePointerDown = (e: ThreeEvent<PointerEvent>) => {
+    if (e.button === 1) { // Middle click (Pick Block)
+      e.stopPropagation();
+      if (blockId) {
+        setSelectedBlock(blockId);
+        setTool('build');
+      }
+    }
+  };
+
   return (
     <Instance
       position={position}
@@ -82,6 +103,7 @@ const GridBlock: React.FC<GridBlockProps> = memo(({ position, color, isBase }) =
       }}
       onPointerOut={() => setHover(false)}
       onClick={handleClick}
+      onPointerDown={handlePointerDown}
       color={hovered ? '#43ff32' : (color || 'white')}
     />
   );
@@ -91,7 +113,8 @@ const TexturedBlockLayer: React.FC<{
   blockDef: BlockDefinition;
   blocks: BlockData[];
   isBase?: boolean;
-}> = ({ blockDef, blocks, isBase }) => {
+  geometry?: THREE.BufferGeometry;
+}> = ({ blockDef, blocks, isBase, geometry }) => {
   if (!blockDef.texture || blocks.length === 0) return null;
 
   const texture = useTexture(blockDef.texture, (tex) => {
@@ -101,10 +124,10 @@ const TexturedBlockLayer: React.FC<{
   });
 
   return (
-    <Instances range={blocks.length} geometry={boxGeometry} castShadow receiveShadow>
-      <meshStandardMaterial map={texture} color="white" />
+    <Instances range={blocks.length} geometry={geometry || boxGeometry} castShadow receiveShadow>
+      <meshStandardMaterial map={texture} color="white" transparent={blockDef.id === 'torch' || blockDef.id === 'glass'} opacity={blockDef.id === 'glass' ? 0.3 : 1} alphaTest={0.1} />
       {blocks.map((b) => (
-        <GridBlock key={b.id} position={b.position as Vector3Tuple} isBase={isBase} />
+        <GridBlock key={b.id} position={b.position as Vector3Tuple} isBase={isBase} blockId={blockDef.id} />
       ))}
     </Instances>
   );
@@ -114,11 +137,12 @@ const ColoredBlockLayer: React.FC<{
   blockDef: BlockDefinition;
   blocks: BlockData[];
   isBase?: boolean;
-}> = ({ blockDef, blocks, isBase }) => {
+  geometry?: THREE.BufferGeometry;
+}> = ({ blockDef, blocks, isBase, geometry }) => {
   if (blocks.length === 0) return null;
 
   return (
-    <Instances range={blocks.length} geometry={boxGeometry} castShadow receiveShadow>
+    <Instances range={blocks.length} geometry={geometry || boxGeometry} castShadow receiveShadow>
       <meshStandardMaterial color="white" />
       {blocks.map((b) => (
         <GridBlock
@@ -126,6 +150,7 @@ const ColoredBlockLayer: React.FC<{
           position={b.position as Vector3Tuple}
           color={blockDef.color}
           isBase={isBase}
+          blockId={blockDef.id}
         />
       ))}
     </Instances>
@@ -181,7 +206,7 @@ const GrassBlockLayer: React.FC<{
       <meshStandardMaterial attach="material-4" map={textures[4]} />
       <meshStandardMaterial attach="material-5" map={textures[5]} />
       {blocks.map((b) => (
-        <GridBlock key={b.id} position={b.position as Vector3Tuple} isBase={isBase} />
+        <GridBlock key={b.id} position={b.position as Vector3Tuple} isBase={isBase} blockId={blockDef.id} />
       ))}
     </Instances>
   );
@@ -323,6 +348,11 @@ export const VoxelGrid: React.FC<{
         const blockDef = palette.find((b) => b.id === type);
         if (!blockDef) return null;
 
+        // Seleziona la geometria in base al tipo di blocco
+        let customGeometry = boxGeometry;
+        if (type === 'torch') customGeometry = torchGeometry;
+        else if (type.includes('stairs') || type.includes('slab')) customGeometry = slabGeometry;
+
         if (type === 'grass_block' && blockDef.texture) {
           return (
             <LayerErrorBoundary
@@ -338,14 +368,14 @@ export const VoxelGrid: React.FC<{
           return (
             <LayerErrorBoundary
               key={type}
-              fallback={<ColoredBlockLayer blockDef={blockDef} blocks={blocks} />}
+              fallback={<ColoredBlockLayer blockDef={blockDef} blocks={blocks} geometry={customGeometry} />}
             >
-              <TexturedBlockLayer blockDef={blockDef} blocks={blocks} />
+              <TexturedBlockLayer blockDef={blockDef} blocks={blocks} geometry={customGeometry} />
             </LayerErrorBoundary>
           );
         }
 
-        return <ColoredBlockLayer key={type} blockDef={blockDef} blocks={blocks} />;
+        return <ColoredBlockLayer key={type} blockDef={blockDef} blocks={blocks} geometry={customGeometry} />;
       })}
 
       <mesh

@@ -15,7 +15,6 @@ export interface WorldSettings {
   fov: number;
   mouseSensitivity: number;
   timePreset: 'day' | 'night';
-  autoRotateDayNight: boolean;
 }
 
 interface WorldState {
@@ -65,41 +64,13 @@ interface WorldState {
 
 const MAX_HISTORY = 10; // Ridotto per risparmiare memoria e prevenire lag
 
-// Semplice sintetizzatore audio per feedback sonoro senza asset esterni
-const playSound = (type: 'place' | 'break') => {
-  if (typeof window === 'undefined') return;
-  const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
-  if (!AudioContext) return;
-  
-  const ctx = new AudioContext();
-  const osc = ctx.createOscillator();
-  const gain = ctx.createGain();
-  
-  osc.connect(gain);
-  gain.connect(ctx.destination);
-  
-  const now = ctx.currentTime;
-  
-  if (type === 'place') {
-    // Suono "Pop" acuto
-    osc.type = 'sine';
-    osc.frequency.setValueAtTime(800, now);
-    osc.frequency.exponentialRampToValueAtTime(400, now + 0.08);
-    gain.gain.setValueAtTime(0.3, now);
-    gain.gain.exponentialRampToValueAtTime(0.01, now + 0.08);
-    osc.start(now);
-    osc.stop(now + 0.1);
-  } else {
-    // Suono "Crunch" più grave
-    osc.type = 'square';
-    osc.frequency.setValueAtTime(150, now);
-    osc.frequency.exponentialRampToValueAtTime(100, now + 0.1);
-    gain.gain.setValueAtTime(0.2, now);
-    gain.gain.exponentialRampToValueAtTime(0.01, now + 0.1);
-    osc.start(now);
-    osc.stop(now + 0.15);
-  }
-};
+// Blocchi speciali (non cubici) da aggiungere manualmente alla palette
+const SPECIAL_BLOCKS: BlockDefinition[] = [
+  { id: 'torch', name: 'Torch', color: '#ffd700', texture: 'https://raw.githubusercontent.com/PrismarineJS/minecraft-assets/master/data/1.20.4/assets/minecraft/textures/block/torch.png' },
+  { id: 'oak_stairs', name: 'Oak Stairs', color: '#b38f56', texture: 'https://raw.githubusercontent.com/PrismarineJS/minecraft-assets/master/data/1.20.4/assets/minecraft/textures/block/oak_planks.png' },
+  { id: 'ladder', name: 'Ladder', color: '#8f764b', texture: 'https://raw.githubusercontent.com/PrismarineJS/minecraft-assets/master/data/1.20.4/assets/minecraft/textures/block/ladder.png' },
+  { id: 'glass', name: 'Glass', color: '#aaddff', texture: 'https://raw.githubusercontent.com/PrismarineJS/minecraft-assets/master/data/1.20.4/assets/minecraft/textures/block/glass.png' },
+];
 
 export const useWorldStore = create<WorldState>()(
   persist(
@@ -109,7 +80,7 @@ export const useWorldStore = create<WorldState>()(
       selectedBlockId: 'grass_block',
       minecraftVersion: '1.20.4',
       availableVersions: MINECRAFT_VERSIONS,
-      palette: MINECRAFT_BLOCKS,
+      palette: [...SPECIAL_BLOCKS, ...MINECRAFT_BLOCKS.filter(b => !SPECIAL_BLOCKS.some(s => s.id === b.id))],
       isLoadingPalette: false,
       hiddenBlockTypes: [],
       tool: 'build',
@@ -129,7 +100,6 @@ export const useWorldStore = create<WorldState>()(
         fov: 50,
         mouseSensitivity: 1.0,
         timePreset: 'day',
-        autoRotateDayNight: false,
       },
       updateSettings: (newSettings) => set((state) => ({ settings: { ...state.settings, ...newSettings } })),
       setCurrentView: (view) => set({ currentView: view }),
@@ -154,8 +124,8 @@ export const useWorldStore = create<WorldState>()(
           useWorldStore.setState({ isBatchGenerating: true });
           for (let x = start; x <= end; x++) {
             for (let z = start; z <= end; z++) {
-              // FIX: Generate base cells using the same placement logic (first build layer at Y=0.5).
-              const pos: Vector3Tuple = [x, 0.5, z];
+              // Place base layer below the grid (Y=-0.5).
+              const pos: Vector3Tuple = [x, -0.5, z];
               add(pos, blockId, false);
             }
           }
@@ -211,8 +181,6 @@ export const useWorldStore = create<WorldState>()(
           const selectedBlock =
             state.palette.find((b) => b.id === blockId) || state.palette[0];
 
-          if (!state.isBatchGenerating) playSound('place');
-
           return {
             blocks: {
               ...state.blocks,
@@ -236,7 +204,6 @@ export const useWorldStore = create<WorldState>()(
           const key = getBlockKey(position);
           // eslint-disable-next-line @typescript-eslint/no-unused-vars
           const { [key]: removed, ...rest } = state.blocks;
-          if (!state.isBatchGenerating) playSound('break');
           return {
             blocks: rest,
             history: {
@@ -250,8 +217,6 @@ export const useWorldStore = create<WorldState>()(
           const key = getBlockKey(position);
           // Se è già vuoto, non fare nulla (evita duplicati nella history)
           if (state.blocks[key]?.type === '_base_empty') return state;
-
-          playSound('break');
 
           const id = `base-empty-${position.join('-')}`;
           return {
@@ -286,14 +251,22 @@ export const useWorldStore = create<WorldState>()(
 
         try {
           const newPalette = await fetchMinecraftBlocks(version, BLOCK_COLOR_MAP);
+          // Uniamo i blocchi fetchati con quelli speciali, rimuovendo duplicati per ID
+          // Mettiamo i blocchi speciali PRIMA per renderli visibili in cima alla lista
+          // e filtriamo i duplicati dalla lista fetchata per mantenere le nostre definizioni custom (es. texture torcia)
+          const combined = newPalette.length > 0 
+            ? [...SPECIAL_BLOCKS, ...newPalette.filter(b => !SPECIAL_BLOCKS.some(s => s.id === b.id))] 
+            : [...SPECIAL_BLOCKS, ...MINECRAFT_BLOCKS.filter(b => !SPECIAL_BLOCKS.some(s => s.id === b.id))];
+          const uniquePalette = Array.from(new Map(combined.map(b => [b.id, b])).values());
+
           set({
-            palette: newPalette.length > 0 ? newPalette : MINECRAFT_BLOCKS,
+            palette: uniquePalette,
             isLoadingPalette: false,
           });
         } catch (error) {
           console.error('Failed to load blocks for version', version, error);
           // fallback ai blocchi statici
-          set({ palette: MINECRAFT_BLOCKS, isLoadingPalette: false });
+          set({ palette: [...SPECIAL_BLOCKS, ...MINECRAFT_BLOCKS.filter(b => !SPECIAL_BLOCKS.some(s => s.id === b.id))], isLoadingPalette: false });
         }
       },
 

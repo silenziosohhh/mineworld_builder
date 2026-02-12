@@ -6,6 +6,8 @@ import type { OrbitControls as OrbitControlsImpl } from 'three-stdlib';
 import { VoxelGrid } from './VoxelGrid';
 import { BuilderUI } from './BuilderUI';
 import { useWorldStore } from '../../store/worldStore';
+import { useNavigate } from 'react-router-dom';
+import { Smartphone } from 'lucide-react';
 
 type MovementState = {
   forward: boolean;
@@ -165,47 +167,22 @@ const EnvironmentManager: React.FC = () => {
   const ambLightRef = useRef<THREE.AmbientLight>(null);
   const skyRef = useRef<any>(null);
 
-  useFrame(({ clock }) => {
-    if (settings.autoRotateDayNight) {
-      const t = clock.getElapsedTime() * 0.2; // Velocità rotazione
-      const radius = 100;
-      const x = Math.sin(t) * radius;
-      const y = Math.cos(t) * radius;
-      const sunPos: [number, number, number] = [x, y, 0];
-      
-      // Aggiornamento diretto (Zero React Overhead)
-      if (dirLightRef.current) {
-        dirLightRef.current.position.set(x, y, 0);
-        dirLightRef.current.intensity = Math.max(0, y / 40);
-      }
-      if (ambLightRef.current) {
-        ambLightRef.current.intensity = Math.max(0.1, y / 200 + 0.2);
-      }
-      // Aggiorna la posizione del sole nello shader del cielo
-      if (skyRef.current && skyRef.current.material && skyRef.current.material.uniforms) {
-        skyRef.current.material.uniforms.sunPosition.value.set(x, y, 0);
-      }
-    }
-  });
-
   // Gestione preset statici (Day/Night) quando l'auto-rotazione è spenta
   useEffect(() => {
-    if (!settings.autoRotateDayNight) {
-      const isDay = settings.timePreset === 'day';
-      const pos: [number, number, number] = isDay ? [50, 100, 50] : [50, -20, 50];
-      
-      if (dirLightRef.current) {
-        dirLightRef.current.position.set(...pos);
-        dirLightRef.current.intensity = isDay ? 1.5 : 0;
-      }
-      if (ambLightRef.current) {
-        ambLightRef.current.intensity = isDay ? 0.4 : 0.1;
-      }
-      if (skyRef.current?.material?.uniforms) {
-        skyRef.current.material.uniforms.sunPosition.value.set(...pos);
-      }
+    const isDay = settings.timePreset === 'day';
+    const pos: [number, number, number] = isDay ? [50, 100, 50] : [50, -20, 50];
+    
+    if (dirLightRef.current) {
+      dirLightRef.current.position.set(...pos);
+      dirLightRef.current.intensity = isDay ? 1.5 : 0;
     }
-  }, [settings.timePreset, settings.autoRotateDayNight]);
+    if (ambLightRef.current) {
+      ambLightRef.current.intensity = isDay ? 0.4 : 0.1;
+    }
+    if (skyRef.current?.material?.uniforms) {
+      skyRef.current.material.uniforms.sunPosition.value.set(...pos);
+    }
+  }, [settings.timePreset]);
 
   return (
     <>
@@ -224,6 +201,7 @@ const EnvironmentManager: React.FC = () => {
 };
 
 export const VoxelScene: React.FC = () => {
+  const navigate = useNavigate();
   const setTool = useWorldStore((state) => state.setTool);
   const tool = useWorldStore((state) => state.tool);
   const isMaterialListOpen = useWorldStore((state) => state.isMaterialListOpen);
@@ -236,6 +214,19 @@ export const VoxelScene: React.FC = () => {
     blockId: 'grass_block',
     size: 32
   });
+
+  const [isMobile, setIsMobile] = useState(false);
+
+  useEffect(() => {
+    const checkScreenSize = () => {
+      // Verifica che ci sia spazio sufficiente sia in larghezza che in altezza
+      // per mostrare l'interfaccia completa (Sidebar, Toolbar, Canvas) senza problemi.
+      setIsMobile(window.innerWidth < 1024 || window.innerHeight < 600);
+    };
+    checkScreenSize();
+    window.addEventListener('resize', checkScreenSize);
+    return () => window.removeEventListener('resize', checkScreenSize);
+  }, []);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -250,8 +241,33 @@ export const VoxelScene: React.FC = () => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [setTool]);
 
-  // Calcola margine dinamico: se la lista materiali è aperta, sposta il gizmo più a sinistra
-  const gizmoMargin: [number, number] = isMaterialListOpen ? [300, 80] : [80, 80];
+  // Calcolo dinamico per adattare perfettamente il Gizmo all'area di lavoro disponibile
+  // Consideriamo la larghezza della sidebar destra (256px) e l'altezza della topbar (~60px)
+  const gizmoMargin: [number, number] = [
+    (isMaterialListOpen ? 300 : 0) + 80, // Right margin: Sidebar width + padding
+    120 // Top margin: TopBar height + padding
+  ];
+
+  if (isMobile) {
+    return (
+      <div className="fixed inset-0 z-50 flex flex-col items-center justify-center w-full h-full p-6 bg-slate-950">
+        <div className="flex items-center justify-center w-20 h-20 mb-6 rounded-full bg-slate-900 ring-1 ring-slate-800">
+          <Smartphone className="w-10 h-10 text-blue-500" />
+        </div>
+        <h2 className="mb-3 text-2xl font-bold text-white">Schermo troppo piccolo</h2>
+        <p className="max-w-md mb-8 text-center text-slate-400">
+          La risoluzione del dispositivo non è sufficiente per un'esperienza ottimale.<br />
+          Si prega di utilizzare uno schermo di almeno 1024x600 pixel.
+        </p>
+        <button
+          onClick={() => navigate('/')}
+          className="px-8 py-3 text-sm font-medium text-white transition-colors bg-blue-600 rounded-lg hover:bg-blue-500"
+        >
+          Torna alla Home
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div 

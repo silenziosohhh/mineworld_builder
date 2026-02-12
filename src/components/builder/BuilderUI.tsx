@@ -687,22 +687,10 @@ export const BuilderUI: React.FC<BuilderUIProps> = ({ baseSettings, setBaseSetti
                     value={settings.timePreset}
                     onChange={(e) => updateSettings({ timePreset: e.target.value as 'day' | 'night' })}
                     className="px-2 py-1 text-sm text-white border rounded bg-slate-800 border-slate-600 focus:outline-none focus:border-blue-500 disabled:opacity-50"
-                    disabled={settings.autoRotateDayNight}
                   >
                     <option value="day">Day</option>
                     <option value="night">Night</option>
                   </select>
-                </div>
-
-                {/* Auto Cycle Toggle */}
-                <div className="flex items-center justify-between">
-                  <label className="text-sm font-medium text-gray-300">Auto Day/Night</label>
-                  <button
-                    onClick={() => updateSettings({ autoRotateDayNight: !settings.autoRotateDayNight })}
-                    className={`w-11 h-6 rounded-full transition-colors relative ${settings.autoRotateDayNight ? 'bg-blue-600' : 'bg-slate-700'}`}
-                  >
-                    <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-all shadow-sm ${settings.autoRotateDayNight ? 'left-6' : 'left-1'}`} />
-                  </button>
                 </div>
 
                 {/* Grid Toggle */}
