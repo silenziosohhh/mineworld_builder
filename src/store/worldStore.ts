@@ -17,17 +17,33 @@ interface WorldState {
   palette: BlockDefinition[];
   isLoadingPalette: boolean;
   tool: 'view' | 'build' | 'erase';
+  toolbarDock: 'top' | 'bottom' | 'left' | 'right';
+  toolbarCollapsed: boolean;
   addBlock: (position: Vector3Tuple, type?: string, replace?: boolean) => void;
   removeBlock: (position: Vector3Tuple) => void;
   resetWorld: () => void;
   setSelectedBlock: (id: string) => void;
   setMinecraftVersion: (version: string) => Promise<void>;
   setTool: (tool: 'view' | 'build' | 'erase') => void;
+  setToolbarDock: (dock: 'top' | 'bottom' | 'left' | 'right') => void;
+  cycleToolbarDock: () => void;
+  toggleToolbarCollapsed: () => void;
   selectedColor?: string;
   setColor?: (color: string) => void;
   undo: () => void;
   redo: () => void;
 }
+
+type PersistedWorldState = {
+  blocks: Record<string, BlockData>;
+  selectedBlockId: string;
+  minecraftVersion: string;
+  palette: BlockDefinition[];
+  tool: 'view' | 'build' | 'erase';
+  toolbarDock: 'top' | 'bottom' | 'left' | 'right';
+  toolbarCollapsed: boolean;
+  selectedColor?: string;
+};
 
 const MAX_HISTORY = 20;
 
@@ -41,6 +57,8 @@ export const useWorldStore = create<WorldState>()(
       palette: MINECRAFT_BLOCKS,
       isLoadingPalette: false,
       tool: 'build',
+      toolbarDock: 'top',
+      toolbarCollapsed: false,
       selectedColor: '#5b8c38',
       setColor: (color) => {
         const block = get().palette.find(b => b.color === color);
@@ -146,30 +164,45 @@ export const useWorldStore = create<WorldState>()(
       },
 
       setTool: (tool) => set({ tool }),
+      setToolbarDock: (dock) => set({ toolbarDock: dock }),
+      cycleToolbarDock: () => {
+        const order: WorldState['toolbarDock'][] = ['top', 'right', 'bottom', 'left'];
+        const current = get().toolbarDock;
+        const next = order[(order.indexOf(current) + 1) % order.length];
+        set({ toolbarDock: next });
+      },
+      toggleToolbarCollapsed: () => set((state) => ({ toolbarCollapsed: !state.toolbarCollapsed })),
     }),
     {
       name: 'mineworld-storage-v2',
-      version: 6,
-      partialize: (state) => ({
+      version: 7,
+      partialize: (state): PersistedWorldState => ({
         blocks: state.blocks,
         selectedBlockId: state.selectedBlockId,
         minecraftVersion: state.minecraftVersion,
         palette: state.palette,
         tool: state.tool,
+        toolbarDock: state.toolbarDock,
+        toolbarCollapsed: state.toolbarCollapsed,
         selectedColor: state.selectedColor,
         // Escludiamo 'history' dal localStorage per evitare che diventi troppo grande
         // e causi problemi di quota o rallentamenti
       }),
       migrate: (persistedState, version) => {
-        const state = persistedState as any;
-        // Reset clipboard if migrating from older versions or if undefined
-        if (version === undefined || version < 6) {
-          return {
-            ...state,
-            history: { past: [], future: [] },
-          };
-        }
-        return state as WorldState;
+        const state = (persistedState ?? {}) as Partial<PersistedWorldState>;
+        const base: PersistedWorldState = {
+          blocks: state.blocks ?? {},
+          selectedBlockId: state.selectedBlockId ?? 'grass_block',
+          minecraftVersion: state.minecraftVersion ?? '1.20.4',
+          palette: state.palette ?? MINECRAFT_BLOCKS,
+          tool: state.tool ?? 'build',
+          toolbarDock: state.toolbarDock ?? 'top',
+          toolbarCollapsed: state.toolbarCollapsed ?? false,
+          selectedColor: state.selectedColor,
+        };
+
+        if (version === undefined || version < 7) return base;
+        return base;
       },
     }
   )
