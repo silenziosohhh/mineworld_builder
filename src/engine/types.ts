@@ -26,4 +26,5 @@ export interface BlockDefinition {
   name: string;
   color: string;
   texture?: string;
+  opacity?: number;
 }

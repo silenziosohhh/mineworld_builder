@@ -17,6 +17,7 @@ export const Block: React.FC<BlockProps> = memo(({ position }) => {
 
   const handleInteraction = (e: ThreeEvent<any>) => {
     if (tool !== 'build') return;
+    if (useWorldStore.getState().isDraggingUI) return;
 
     e.stopPropagation();
     
@@ -36,7 +37,7 @@ export const Block: React.FC<BlockProps> = memo(({ position }) => {
       ];
 
       // Prevent placing blocks below the ground
-      if (newPos[1] < 0) return;
+      if (newPos[1] < -0.5) return;
 
       addBlock(newPos);
     }
@@ -54,8 +55,10 @@ export const Block: React.FC<BlockProps> = memo(({ position }) => {
       }}
       onPointerOver={(e) => { 
         e.stopPropagation(); 
-        setHover(true);
-        if (e.buttons === 1) handleInteraction(e);
+        if (!useWorldStore.getState().isDraggingUI) {
+          setHover(true);
+          if (e.buttons === 1) handleInteraction(e);
+        }
       }}
       onPointerOut={(e) => { e.stopPropagation(); setHover(false); }}
     />

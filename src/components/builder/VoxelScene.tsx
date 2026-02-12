@@ -1,5 +1,5 @@
-import React, { Suspense, useEffect, useRef } from 'react';
-import { Canvas, useFrame } from '@react-three/fiber';
+import React, { Suspense, useEffect, useRef, useMemo, useState } from 'react';
+import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { OrbitControls, Sky, Stars, Bvh, GizmoHelper, GizmoViewport } from '@react-three/drei';
 import * as THREE from 'three';
 import type { OrbitControls as OrbitControlsImpl } from 'three-stdlib';
@@ -54,15 +54,8 @@ const KeyboardNavigation: React.FC<{ controlsRef: React.RefObject<OrbitControlsI
         case 'KeyD':
           m.right = true;
           break;
-        case 'Space':
-          m.up = true;
-          break;
         case 'ControlLeft':
         case 'ControlRight':
-          m.down = true;
-          break;
-        case 'ShiftLeft':
-        case 'ShiftRight':
           m.boost = true;
           break;
         default:
@@ -85,15 +78,8 @@ const KeyboardNavigation: React.FC<{ controlsRef: React.RefObject<OrbitControlsI
         case 'KeyD':
           m.right = false;
           break;
-        case 'Space':
-          m.up = false;
-          break;
         case 'ControlLeft':
         case 'ControlRight':
-          m.down = false;
-          break;
-        case 'ShiftLeft':
-        case 'ShiftRight':
           m.boost = false;
           break;
         default:
@@ -109,6 +95,14 @@ const KeyboardNavigation: React.FC<{ controlsRef: React.RefObject<OrbitControlsI
     };
   }, []);
 
+  // Ottimizzazione: Creiamo i vettori una sola volta per non allocare memoria ogni frame (Garbage Collection)
+  const vectors = useMemo(() => ({
+    forward: new THREE.Vector3(),
+    right: new THREE.Vector3(),
+    move: new THREE.Vector3(),
+    upAxis: new THREE.Vector3(0, 1, 0)
+  }), []);
+
   useFrame(({ camera }, delta) => {
     const controls = controlsRef.current;
     if (!controls) return;
@@ -121,38 +115,127 @@ const KeyboardNavigation: React.FC<{ controlsRef: React.RefObject<OrbitControlsI
     const baseSpeed = 12;
     const speed = (m.boost ? baseSpeed * 2.25 : baseSpeed) * delta;
 
-    const forward = new THREE.Vector3();
-    camera.getWorldDirection(forward);
-    forward.y = 0;
-    if (forward.lengthSq() > 0) forward.normalize();
+    // Reset e riutilizzo vettori
+    vectors.forward.set(0, 0, 0);
+    camera.getWorldDirection(vectors.forward);
+    vectors.forward.y = 0;
+    if (vectors.forward.lengthSq() > 0) vectors.forward.normalize();
 
-    const right = new THREE.Vector3()
-      .crossVectors(forward, new THREE.Vector3(0, 1, 0))
+    vectors.right.crossVectors(vectors.forward, vectors.upAxis)
       .normalize();
 
-    const move = new THREE.Vector3();
-    if (m.forward) move.add(forward);
-    if (m.backward) move.sub(forward);
-    if (m.right) move.add(right);
-    if (m.left) move.sub(right);
-    if (m.up) move.y += 1;
-    if (m.down) move.y -= 1;
+    vectors.move.set(0, 0, 0);
+    if (m.forward) vectors.move.add(vectors.forward);
+    if (m.backward) vectors.move.sub(vectors.forward);
+    if (m.right) vectors.move.add(vectors.right);
+    if (m.left) vectors.move.sub(vectors.right);
+    if (m.up) vectors.move.y += 1;
+    if (m.down) vectors.move.y -= 1;
 
-    if (move.lengthSq() === 0) return;
-    move.normalize().multiplyScalar(speed);
+    if (vectors.move.lengthSq() === 0) return;
+    vectors.move.normalize().multiplyScalar(speed);
 
-    camera.position.add(move);
-    controls.target.add(move);
+    camera.position.add(vectors.move);
+    controls.target.add(vectors.move);
     controls.update();
   });
 
   return null;
 };
 
+// Componente helper per aggiornare la camera quando cambiano le impostazioni
+const CameraUpdater: React.FC<{ fov: number }> = ({ fov }) => {
+  const { camera } = useThree();
+  useEffect(() => {
+    if (camera instanceof THREE.PerspectiveCamera) {
+      camera.fov = fov;
+      camera.updateProjectionMatrix();
+    }
+  }, [camera, fov]);
+  return null;
+};
+
+// Gestisce il ciclo giorno/notte e l'illuminazione
+const EnvironmentManager: React.FC = () => {
+  const settings = useWorldStore((state) => state.settings);
+  
+  // Usiamo refs per manipolare direttamente gli oggetti Three.js
+  // Questo evita re-render di React a 60fps che ucciderebbero le performance
+  const dirLightRef = useRef<THREE.DirectionalLight>(null);
+  const ambLightRef = useRef<THREE.AmbientLight>(null);
+  const skyRef = useRef<any>(null);
+
+  useFrame(({ clock }) => {
+    if (settings.autoRotateDayNight) {
+      const t = clock.getElapsedTime() * 0.2; // Velocità rotazione
+      const radius = 100;
+      const x = Math.sin(t) * radius;
+      const y = Math.cos(t) * radius;
+      const sunPos: [number, number, number] = [x, y, 0];
+      
+      // Aggiornamento diretto (Zero React Overhead)
+      if (dirLightRef.current) {
+        dirLightRef.current.position.set(x, y, 0);
+        dirLightRef.current.intensity = Math.max(0, y / 40);
+      }
+      if (ambLightRef.current) {
+        ambLightRef.current.intensity = Math.max(0.1, y / 200 + 0.2);
+      }
+      // Aggiorna la posizione del sole nello shader del cielo
+      if (skyRef.current && skyRef.current.material && skyRef.current.material.uniforms) {
+        skyRef.current.material.uniforms.sunPosition.value.set(x, y, 0);
+      }
+    }
+  });
+
+  // Gestione preset statici (Day/Night) quando l'auto-rotazione è spenta
+  useEffect(() => {
+    if (!settings.autoRotateDayNight) {
+      const isDay = settings.timePreset === 'day';
+      const pos: [number, number, number] = isDay ? [50, 100, 50] : [50, -20, 50];
+      
+      if (dirLightRef.current) {
+        dirLightRef.current.position.set(...pos);
+        dirLightRef.current.intensity = isDay ? 1.5 : 0;
+      }
+      if (ambLightRef.current) {
+        ambLightRef.current.intensity = isDay ? 0.4 : 0.1;
+      }
+      if (skyRef.current?.material?.uniforms) {
+        skyRef.current.material.uniforms.sunPosition.value.set(...pos);
+      }
+    }
+  }, [settings.timePreset, settings.autoRotateDayNight]);
+
+  return (
+    <>
+      <Sky ref={skyRef} sunPosition={[50, 100, 50]} />
+      <Stars radius={100} depth={50} count={5000} factor={4} saturation={0} fade speed={1} />
+      <ambientLight ref={ambLightRef} intensity={0.4} />
+      <directionalLight 
+        ref={dirLightRef}
+        position={[50, 100, 50]} 
+        intensity={1.5} 
+        castShadow={settings.shadows}
+        shadow-mapSize={[2048, 2048]} 
+      />
+    </>
+  );
+};
+
 export const VoxelScene: React.FC = () => {
   const setTool = useWorldStore((state) => state.setTool);
   const tool = useWorldStore((state) => state.tool);
+  const isMaterialListOpen = useWorldStore((state) => state.isMaterialListOpen);
+  const isDraggingUI = useWorldStore((state) => state.isDraggingUI);
+  const settings = useWorldStore((state) => state.settings);
   const controlsRef = useRef<OrbitControlsImpl | null>(null);
+  
+  const [baseSettings, setBaseSettings] = useState({
+    enabled: false,
+    blockId: 'grass_block',
+    size: 32
+  });
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -167,46 +250,46 @@ export const VoxelScene: React.FC = () => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [setTool]);
 
+  // Calcola margine dinamico: se la lista materiali è aperta, sposta il gizmo più a sinistra
+  const gizmoMargin: [number, number] = isMaterialListOpen ? [300, 80] : [80, 80];
+
   return (
     <div 
-      className="relative w-full h-full bg-slate-900"
+      className="fixed inset-0 w-full h-full bg-slate-900 z-0"
       onContextMenu={(e) => e.preventDefault()}
     >
-      <Canvas camera={{ position: [10, 10, 10], fov: 50, far: 10000 }}>
-        <Sky sunPosition={[100, 20, 100]} />
-        <Stars />
-        <ambientLight intensity={0.5} />
-        <pointLight position={[10, 10, 10]} intensity={1} />
+      <Canvas shadows={settings.shadows} camera={{ position: [10, 10, 10], fov: settings.fov, far: 10000 }}>
+        <CameraUpdater fov={settings.fov} />
+        <EnvironmentManager />
         <Suspense fallback={null}>
           <Bvh firstHitOnly>
-            <VoxelGrid />
+            <VoxelGrid baseSettings={baseSettings} />
           </Bvh>
         </Suspense>
         <KeyboardNavigation controlsRef={controlsRef} />
         <OrbitControls 
           ref={controlsRef}
+          enabled={!isDraggingUI}
           makeDefault 
           minDistance={2}
           maxDistance={100}
-          enableDamping
-          dampingFactor={0.05}
+          enableDamping={false}
+          rotateSpeed={settings.mouseSensitivity}
           mouseButtons={{
             LEFT: tool === 'view' ? THREE.MOUSE.ROTATE : -1 as unknown as THREE.MOUSE,
             MIDDLE: THREE.MOUSE.PAN,
             RIGHT: THREE.MOUSE.ROTATE
           }}
         />
-         // GizmoHelper, ci sono ancora un po di problemi con l'orientation
-        <GizmoHelper alignment="top-right" margin={[320, 125]}>
+        <GizmoHelper alignment="top-right" margin={gizmoMargin} renderPriority={1}>
           <GizmoViewport 
             axisColors={['#ff3653', '#0adb50', '#2c8fdf']} 
             labelColor="black"
-            hideNegativeAxes
           />
         </GizmoHelper>
       </Canvas>
       
-      <BuilderUI />
+      <BuilderUI baseSettings={baseSettings} setBaseSettings={setBaseSettings} />
     </div>
   );
 };

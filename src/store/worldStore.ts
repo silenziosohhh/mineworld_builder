@@ -1,12 +1,21 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import type { BlockData, Vector3Tuple, BlockDefinition } from '../engine/types';
-import { generateId, MINECRAFT_BLOCKS, BLOCK_COLOR_MAP, getBlockKey } from '../engine/voxelEngine';
-import { fetchMinecraftBlocks } from '../services/minecraftApi';
+import { generateId, MINECRAFT_BLOCKS, BLOCK_COLOR_MAP, getBlockKey, MINECRAFT_VERSIONS } from '../engine/voxelEngine';
+import { fetchMinecraftBlocks, fetchMinecraftVersions } from '../services/minecraftApi';
 
 interface HistoryState {
   past: Record<string, BlockData>[];
   future: Record<string, BlockData>[];
+}
+
+export interface WorldSettings {
+  shadows: boolean;
+  showGrid: boolean;
+  fov: number;
+  mouseSensitivity: number;
+  timePreset: 'day' | 'night';
+  autoRotateDayNight: boolean;
 }
 
 interface WorldState {
@@ -14,19 +23,31 @@ interface WorldState {
   history: HistoryState;
   selectedBlockId: string;
   minecraftVersion: string;
+  availableVersions: string[];
   palette: BlockDefinition[];
   isLoadingPalette: boolean;
   tool: 'view' | 'build' | 'erase';
   toolbarDock: 'top' | 'bottom' | 'left' | 'right';
   toolbarCollapsed: boolean;
+  currentView: 'perspective' | 'top' | 'front';
+  isSidebarOpen: boolean;
+  setSidebarOpen: (isOpen: boolean) => void;
+  isMaterialListOpen: boolean;
+  setMaterialListOpen: (isOpen: boolean) => void;
+  isDraggingUI: boolean;
+  setDraggingUI: (isDragging: boolean) => void;
+  settings: WorldSettings;
+  updateSettings: (settings: Partial<WorldSettings>) => void;
+  setCurrentView: (view: 'perspective' | 'top' | 'front') => void;
   addBlock: (position: Vector3Tuple, type?: string, replace?: boolean) => void;
   removeBlock: (position: Vector3Tuple) => void;
+  setBaseEmpty: (position: Vector3Tuple) => void;
   resetWorld: () => void;
   setSelectedBlock: (id: string) => void;
   setMinecraftVersion: (version: string) => Promise<void>;
+  loadVersions: () => Promise<void>;
   setTool: (tool: 'view' | 'build' | 'erase') => void;
   setToolbarDock: (dock: 'top' | 'bottom' | 'left' | 'right') => void;
-  cycleToolbarDock: () => void;
   toggleToolbarCollapsed: () => void;
   selectedColor?: string;
   setColor?: (color: string) => void;
@@ -34,18 +55,43 @@ interface WorldState {
   redo: () => void;
 }
 
-type PersistedWorldState = {
-  blocks: Record<string, BlockData>;
-  selectedBlockId: string;
-  minecraftVersion: string;
-  palette: BlockDefinition[];
-  tool: 'view' | 'build' | 'erase';
-  toolbarDock: 'top' | 'bottom' | 'left' | 'right';
-  toolbarCollapsed: boolean;
-  selectedColor?: string;
-};
+const MAX_HISTORY = 10; // Ridotto per risparmiare memoria e prevenire lag
 
-const MAX_HISTORY = 20;
+// Semplice sintetizzatore audio per feedback sonoro senza asset esterni
+const playSound = (type: 'place' | 'break') => {
+  if (typeof window === 'undefined') return;
+  const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
+  if (!AudioContext) return;
+  
+  const ctx = new AudioContext();
+  const osc = ctx.createOscillator();
+  const gain = ctx.createGain();
+  
+  osc.connect(gain);
+  gain.connect(ctx.destination);
+  
+  const now = ctx.currentTime;
+  
+  if (type === 'place') {
+    // Suono "Pop" acuto
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(800, now);
+    osc.frequency.exponentialRampToValueAtTime(400, now + 0.08);
+    gain.gain.setValueAtTime(0.3, now);
+    gain.gain.exponentialRampToValueAtTime(0.01, now + 0.08);
+    osc.start(now);
+    osc.stop(now + 0.1);
+  } else {
+    // Suono "Crunch" più grave
+    osc.type = 'square';
+    osc.frequency.setValueAtTime(150, now);
+    osc.frequency.exponentialRampToValueAtTime(100, now + 0.1);
+    gain.gain.setValueAtTime(0.2, now);
+    gain.gain.exponentialRampToValueAtTime(0.01, now + 0.1);
+    osc.start(now);
+    osc.stop(now + 0.15);
+  }
+};
 
 export const useWorldStore = create<WorldState>()(
   persist(
@@ -54,11 +100,29 @@ export const useWorldStore = create<WorldState>()(
       history: { past: [], future: [] },
       selectedBlockId: 'grass_block',
       minecraftVersion: '1.20.4',
+      availableVersions: MINECRAFT_VERSIONS,
       palette: MINECRAFT_BLOCKS,
       isLoadingPalette: false,
       tool: 'build',
-      toolbarDock: 'top',
+      toolbarDock: 'bottom',
       toolbarCollapsed: false,
+      currentView: 'perspective',
+      isSidebarOpen: true,
+      setSidebarOpen: (isOpen) => set({ isSidebarOpen: isOpen }),
+      isMaterialListOpen: true,
+      setMaterialListOpen: (isOpen) => set({ isMaterialListOpen: isOpen }),
+      isDraggingUI: false,
+      setDraggingUI: (isDragging) => set({ isDraggingUI: isDragging }),
+      settings: {
+        shadows: true,
+        showGrid: true,
+        fov: 50,
+        mouseSensitivity: 1.0,
+        timePreset: 'day',
+        autoRotateDayNight: false,
+      },
+      updateSettings: (newSettings) => set((state) => ({ settings: { ...state.settings, ...newSettings } })),
+      setCurrentView: (view) => set({ currentView: view }),
       selectedColor: '#5b8c38',
       setColor: (color) => {
         const block = get().palette.find(b => b.color === color);
@@ -106,6 +170,8 @@ export const useWorldStore = create<WorldState>()(
           const selectedBlock =
             state.palette.find((b) => b.id === blockId) || state.palette[0];
 
+          playSound('place');
+
           return {
             blocks: {
               ...state.blocks,
@@ -129,8 +195,35 @@ export const useWorldStore = create<WorldState>()(
           const key = getBlockKey(position);
           // eslint-disable-next-line @typescript-eslint/no-unused-vars
           const { [key]: removed, ...rest } = state.blocks;
+          playSound('break');
           return {
             blocks: rest,
+            history: {
+              past: [...state.history.past, state.blocks].slice(-MAX_HISTORY),
+              future: [],
+            },
+          };
+        }),
+      setBaseEmpty: (position) =>
+        set((state) => {
+          const key = getBlockKey(position);
+          // Se è già vuoto, non fare nulla (evita duplicati nella history)
+          if (state.blocks[key]?.type === '_base_empty') return state;
+
+          playSound('break');
+
+          const id = `base-empty-${position.join('-')}`;
+          return {
+            blocks: {
+              ...state.blocks,
+              [key]: {
+                id,
+                position,
+                type: '_base_empty',
+                rotation: [0, 0, 0],
+                color: '#000000'
+              } as BlockData
+            },
             history: {
               past: [...state.history.past, state.blocks].slice(-MAX_HISTORY),
               future: [],
@@ -163,46 +256,48 @@ export const useWorldStore = create<WorldState>()(
         }
       },
 
+      loadVersions: async () => {
+        const versions = await fetchMinecraftVersions();
+        if (versions.length > 0) {
+          set({ availableVersions: versions });
+        }
+      },
+
       setTool: (tool) => set({ tool }),
       setToolbarDock: (dock) => set({ toolbarDock: dock }),
-      cycleToolbarDock: () => {
-        const order: WorldState['toolbarDock'][] = ['top', 'right', 'bottom', 'left'];
-        const current = get().toolbarDock;
-        const next = order[(order.indexOf(current) + 1) % order.length];
-        set({ toolbarDock: next });
-      },
       toggleToolbarCollapsed: () => set((state) => ({ toolbarCollapsed: !state.toolbarCollapsed })),
     }),
     {
       name: 'mineworld-storage-v2',
-      version: 7,
-      partialize: (state): PersistedWorldState => ({
+      version: 6,
+      partialize: (state) => ({
         blocks: state.blocks,
         selectedBlockId: state.selectedBlockId,
         minecraftVersion: state.minecraftVersion,
+        availableVersions: state.availableVersions,
         palette: state.palette,
         tool: state.tool,
         toolbarDock: state.toolbarDock,
         toolbarCollapsed: state.toolbarCollapsed,
+        currentView: state.currentView,
+        isSidebarOpen: state.isSidebarOpen,
+        isMaterialListOpen: state.isMaterialListOpen,
+        // Non persistiamo isDraggingUI perché è uno stato temporaneo
         selectedColor: state.selectedColor,
+        settings: state.settings,
         // Escludiamo 'history' dal localStorage per evitare che diventi troppo grande
         // e causi problemi di quota o rallentamenti
       }),
       migrate: (persistedState, version) => {
-        const state = (persistedState ?? {}) as Partial<PersistedWorldState>;
-        const base: PersistedWorldState = {
-          blocks: state.blocks ?? {},
-          selectedBlockId: state.selectedBlockId ?? 'grass_block',
-          minecraftVersion: state.minecraftVersion ?? '1.20.4',
-          palette: state.palette ?? MINECRAFT_BLOCKS,
-          tool: state.tool ?? 'build',
-          toolbarDock: state.toolbarDock ?? 'top',
-          toolbarCollapsed: state.toolbarCollapsed ?? false,
-          selectedColor: state.selectedColor,
-        };
-
-        if (version === undefined || version < 7) return base;
-        return base;
+        const state = persistedState as any;
+        // Reset clipboard if migrating from older versions or if undefined
+        if (version === undefined || version < 6) {
+          return {
+            ...state,
+            history: { past: [], future: [] },
+          };
+        }
+        return state as WorldState;
       },
     }
   )

@@ -1,5 +1,5 @@
 import React from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuthStore } from '../../store/authStore';
 import { Button } from '../ui/Button';
 import { Box, LogOut, User as UserIcon } from 'lucide-react';
@@ -7,6 +7,12 @@ import { Box, LogOut, User as UserIcon } from 'lucide-react';
 export const Navbar: React.FC = () => {
   const { isAuthenticated, user, logout } = useAuthStore();
   const navigate = useNavigate();
+  const location = useLocation();
+
+  // Nascondi la Navbar se siamo nell'editor (route /builder)
+  if (location.pathname === '/builder') {
+    return null;
+  }
 
   const handleLogout = () => {
     logout();
