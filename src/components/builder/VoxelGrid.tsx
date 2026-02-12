@@ -250,18 +250,20 @@ export const VoxelGrid: React.FC<{
 const blocksMap = useWorldStore((state) => state.blocks);
 const palette = useWorldStore((state) => state.palette);
 const addBlock = useWorldStore((state) => state.addBlock);
-const tool = useWorldStore((state) => state.tool);
-const settings = useWorldStore((state) => state.settings);
+  const tool = useWorldStore((state) => state.tool);
+  const settings = useWorldStore((state) => state.settings);
+  const hiddenBlockIds = useWorldStore((state) => state.hiddenBlockIds);
 
-const blocksByType = useMemo(() => {
-const groups: Record<string, BlockData[]> = {};
-Object.values(blocksMap).forEach((block) => {
-if (block.type === '_base_empty') return; // Non renderizzare i blocchi vuoti
-if (!groups[block.type]) groups[block.type] = [];
-groups[block.type].push(block);
-});
-return groups;
-}, [blocksMap]);
+  const blocksByType = useMemo(() => {
+    const groups: Record<string, BlockData[]> = {};
+    Object.values(blocksMap).forEach((block) => {
+      if (block.type === '_base_empty') return; // Non renderizzare i blocchi vuoti
+      if (hiddenBlockIds.includes(block.type)) return; // Non renderizzare blocchi nascosti
+      if (!groups[block.type]) groups[block.type] = [];
+      groups[block.type].push(block);
+    });
+    return groups;
+  }, [blocksMap, hiddenBlockIds]);
 
 const handlePlaneInteraction = (e: ThreeEvent<any>) => {
 if (tool !== 'build') return;

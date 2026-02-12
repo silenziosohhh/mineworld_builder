@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useWorldStore } from '../../store/worldStore';
-import { ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Box, Layers, Loader2, Save, Hand, Hammer, Search, Eraser, ArrowLeft, Settings, X } from 'lucide-react';
+import { ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Box, Layers, Loader2, Save, Hand, Hammer, Search, Eraser, ArrowLeft, Settings, X, Eye, EyeOff } from 'lucide-react';
 import { AnimatePresence, motion, type Variants } from 'framer-motion';
 
 // Componente estratto per evitare ridefinizioni ad ogni render
@@ -58,7 +58,9 @@ export const BuilderUI: React.FC<BuilderUIProps> = ({ baseSettings, setBaseSetti
     isDraggingUI,
     setDraggingUI,
     settings,
-    updateSettings
+    updateSettings,
+    hiddenBlockIds,
+    toggleBlockVisibility
   } = useWorldStore();
   
   const navigate = useNavigate();
@@ -599,8 +601,10 @@ export const BuilderUI: React.FC<BuilderUIProps> = ({ baseSettings, setBaseSetti
                 {Object.entries(blockCounts).map(([type, count]) => {
                   const blockInfo = palette.find(b => b.id === type);
                   if (!blockInfo) return null;
+                  const isHidden = hiddenBlockIds.includes(type);
+                  
                   return (
-                    <li key={type} className="flex items-center justify-between p-2 border rounded bg-slate-800/50 border-slate-700">
+                    <li key={type} className={`flex items-center justify-between p-2 border rounded border-slate-700 transition-colors ${isHidden ? 'bg-slate-800/30 opacity-60' : 'bg-slate-800/50'}`}>
                       <div className="flex items-center gap-2 overflow-hidden">
                         {blockInfo.texture && !failedTextures[blockInfo.id] ? (
                           <img 
@@ -615,9 +619,21 @@ export const BuilderUI: React.FC<BuilderUIProps> = ({ baseSettings, setBaseSetti
                             style={{ backgroundColor: blockInfo.color }}
                           />
                         )}
-                        <span className="text-sm text-gray-200 truncate">{blockInfo.name}</span>
+                        <span className={`text-sm truncate ${isHidden ? 'text-gray-500 line-through' : 'text-gray-200'}`}>
+                          {blockInfo.name}
+                        </span>
                       </div>
-                      <span className="font-mono text-sm font-bold text-blue-400">x{count}</span>
+                      
+                      <div className="flex items-center gap-3">
+                        <button
+                          onClick={() => toggleBlockVisibility(type)}
+                          className={`p-1 rounded transition-colors ${isHidden ? 'text-gray-500 hover:text-gray-300' : 'text-gray-400 hover:text-white hover:bg-slate-700'}`}
+                          title={isHidden ? "Show blocks" : "Hide blocks"}
+                        >
+                          {isHidden ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                        </button>
+                        <span className="font-mono text-sm font-bold text-blue-400 min-w-[24px] text-right">x{count}</span>
+                      </div>
                     </li>
                   );
                 })}

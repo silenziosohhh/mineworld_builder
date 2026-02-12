@@ -26,6 +26,7 @@ interface WorldState {
   availableVersions: string[];
   palette: BlockDefinition[];
   isLoadingPalette: boolean;
+  hiddenBlockTypes: string[]; // Tipi di blocchi nascosti
   tool: 'view' | 'build' | 'erase';
   toolbarDock: 'top' | 'bottom' | 'left' | 'right';
   toolbarCollapsed: boolean;
@@ -46,10 +47,13 @@ interface WorldState {
   setSelectedBlock: (id: string) => void;
   setMinecraftVersion: (version: string) => Promise<void>;
   loadVersions: () => Promise<void>;
+  toggleHiddenBlockType: (type: string) => void;
   setTool: (tool: 'view' | 'build' | 'erase') => void;
   setToolbarDock: (dock: 'top' | 'bottom' | 'left' | 'right') => void;
   toggleToolbarCollapsed: () => void;
   selectedColor?: string;
+  hiddenBlockIds: string[];
+  toggleBlockVisibility: (blockType: string) => void;
   setColor?: (color: string) => void;
   undo: () => void;
   redo: () => void;
@@ -103,6 +107,7 @@ export const useWorldStore = create<WorldState>()(
       availableVersions: MINECRAFT_VERSIONS,
       palette: MINECRAFT_BLOCKS,
       isLoadingPalette: false,
+      hiddenBlockTypes: [],
       tool: 'build',
       toolbarDock: 'bottom',
       toolbarCollapsed: false,
@@ -124,6 +129,15 @@ export const useWorldStore = create<WorldState>()(
       updateSettings: (newSettings) => set((state) => ({ settings: { ...state.settings, ...newSettings } })),
       setCurrentView: (view) => set({ currentView: view }),
       selectedColor: '#5b8c38',
+      hiddenBlockIds: [],
+      toggleBlockVisibility: (blockType) => set((state) => {
+        const isHidden = state.hiddenBlockIds.includes(blockType);
+        return {
+          hiddenBlockIds: isHidden
+            ? state.hiddenBlockIds.filter(id => id !== blockType)
+            : [...state.hiddenBlockIds, blockType]
+        };
+      }),
       setColor: (color) => {
         const block = get().palette.find(b => b.color === color);
         if (block) set({ selectedBlockId: block.id });
@@ -263,6 +277,16 @@ export const useWorldStore = create<WorldState>()(
         }
       },
 
+      toggleHiddenBlockType: (type) =>
+        set((state) => {
+          const isHidden = state.hiddenBlockTypes.includes(type);
+          return {
+            hiddenBlockTypes: isHidden
+              ? state.hiddenBlockTypes.filter((t) => t !== type)
+              : [...state.hiddenBlockTypes, type],
+          };
+        }),
+
       setTool: (tool) => set({ tool }),
       setToolbarDock: (dock) => set({ toolbarDock: dock }),
       toggleToolbarCollapsed: () => set((state) => ({ toolbarCollapsed: !state.toolbarCollapsed })),
@@ -276,6 +300,7 @@ export const useWorldStore = create<WorldState>()(
         minecraftVersion: state.minecraftVersion,
         availableVersions: state.availableVersions,
         palette: state.palette,
+        hiddenBlockTypes: state.hiddenBlockTypes,
         tool: state.tool,
         toolbarDock: state.toolbarDock,
         toolbarCollapsed: state.toolbarCollapsed,
@@ -284,6 +309,7 @@ export const useWorldStore = create<WorldState>()(
         isMaterialListOpen: state.isMaterialListOpen,
         // Non persistiamo isDraggingUI perché è uno stato temporaneo
         selectedColor: state.selectedColor,
+        hiddenBlockIds: state.hiddenBlockIds,
         settings: state.settings,
         // Escludiamo 'history' dal localStorage per evitare che diventi troppo grande
         // e causi problemi di quota o rallentamenti
@@ -295,9 +321,13 @@ export const useWorldStore = create<WorldState>()(
           return {
             ...state,
             history: { past: [], future: [] },
+            hiddenBlockTypes: state.hiddenBlockTypes || [], // Ensure it exists
           };
         }
-        return state as WorldState;
+        return {
+          ...state,
+          hiddenBlockTypes: state.hiddenBlockTypes || [], // Ensure it exists even for newer versions if missing
+        } as WorldState;
       },
     }
   )
