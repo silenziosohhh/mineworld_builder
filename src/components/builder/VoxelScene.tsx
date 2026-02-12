@@ -1,6 +1,6 @@
 import React, { Suspense, useEffect } from 'react';
 import { Canvas } from '@react-three/fiber';
-import { OrbitControls, Sky, Stars, Bvh } from '@react-three/drei';
+import { OrbitControls, Sky, Stars, Bvh, GizmoHelper, GizmoViewport } from '@react-three/drei';
 import * as THREE from 'three';
 import { VoxelGrid } from './VoxelGrid';
 import { BuilderUI } from './BuilderUI';
@@ -22,7 +22,7 @@ export const VoxelScene: React.FC = () => {
 
   return (
     <div 
-      className="w-full h-full bg-slate-900 relative"
+      className="relative w-full h-full bg-slate-900"
       onContextMenu={(e) => e.preventDefault()}
     >
       <Canvas camera={{ position: [10, 10, 10], fov: 50, far: 10000 }}>
@@ -47,6 +47,14 @@ export const VoxelScene: React.FC = () => {
             RIGHT: THREE.MOUSE.ROTATE
           }}
         />
+         // GizmoHelper, ci sono ancora un po di problemi con l'orientation
+        <GizmoHelper alignment="top-right" margin={[320, 125]}>
+          <GizmoViewport 
+            axisColors={['#ff3653', '#0adb50', '#2c8fdf']} 
+            labelColor="black"
+            hideNegativeAxes
+          />
+        </GizmoHelper>
       </Canvas>
       
       <BuilderUI />
