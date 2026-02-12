@@ -116,7 +116,7 @@ export const useWorldStore = create<WorldState>()(
         };
       }),
       applyBaseLayer: (blockId, size) =>
-        set((state) => {
+        set(() => {
           const add = useWorldStore.getState().addBlock;
           const start = -Math.floor(size / 2);
           const end = start + size - 1;

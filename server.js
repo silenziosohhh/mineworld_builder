@@ -1,5 +1,10 @@
-const express = require('express');
-const path = require('path');
+import express from 'express';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
 const app = express();
 
 // Porta su cui girerà il server (default 3000, o quella passata da PM2/Env)
@@ -14,7 +19,7 @@ app.use(express.static(BUILD_DIR));
 
 // Gestisce il routing lato client (React Router)
 // Qualsiasi richiesta che non corrisponde a un file statico viene mandata a index.html
-app.get('*', (req, res) => {
+app.get('/', (req, res) => {
   res.sendFile(path.join(BUILD_DIR, 'index.html'));
 });
 

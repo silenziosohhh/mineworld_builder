@@ -279,7 +279,7 @@ export const VoxelScene: React.FC = () => {
         <EnvironmentManager />
         <Suspense fallback={null}>
           <Bvh firstHitOnly>
-            <VoxelGrid baseSettings={baseSettings} />
+            <VoxelGrid />
           </Bvh>
         </Suspense>
         <KeyboardNavigation controlsRef={controlsRef} />

@@ -1,4 +1,4 @@
-import React, { useMemo, useState, memo, useEffect } from 'react';
+import React, { useMemo, useState, memo } from 'react';
 import { useWorldStore } from '../../store/worldStore';
 import { Instances, Instance, useTexture, Grid } from '@react-three/drei';
 import type { ThreeEvent } from '@react-three/fiber';
@@ -212,100 +212,7 @@ const GrassBlockLayer: React.FC<{
   );
 };
 
-const BaseLayer: React.FC<{
-  enabled: boolean;
-  blockId: string;
-  size: number;
-}> = memo(({ enabled, blockId, size }) => {
-  const palette = useWorldStore((s) => s.palette);
-  const blocksMap = useWorldStore((s) => s.blocks);
-
-  const baseBlocks = useMemo(() => {
-    if (!enabled || !blockId || size <= 0) return [];
-
-    // FIX #1: bounds che producono ESATTAMENTE size celle (pari e dispari)
-    const start = -Math.floor(size / 2);
-    const end = start + size - 1;
-
-    // FIX #2: ignora i marker '_base_empty' quando calcoli l'occupato,
-    // altrimenti cambiando size ti “buchi” la base con buchi fantasma.
-    const occupied = new Set<string>();
-    Object.values(blocksMap).forEach((b) => {
-      if (b.type === '_base_empty') return;
-      const p = b.position as Vector3Tuple;
-      if (Math.abs(p[1] + 0.5) < 0.01) {
-        occupied.add(`${Math.round(p[0])},${Math.round(p[2])}`);
-      }
-    });
-
-    const out: BlockData[] = [];
-
-    for (let x = start; x <= end; x++) {
-      for (let z = start; z <= end; z++) {
-        if (occupied.has(`${x},${z}`)) continue;
-        out.push({
-          id: `base-${x}-${z}`,
-          type: blockId,
-          position: [x + 0.5, -0.5, z + 0.5],
-          // position: [x, -0.5, z],
-          rotation: [0, 0, 0]
-        } as any);
-      }
-    }
-
-    return out;
-  }, [enabled, blockId, size, blocksMap]);
-
-  if (!enabled || baseBlocks.length === 0) return null;
-
-  const blockDef = palette.find((b) => b.id === blockId);
-  if (!blockDef) return null;
-
-  if (blockId === 'grass_block' && blockDef.texture) {
-    return (
-      <LayerErrorBoundary fallback={<ColoredBlockLayer blockDef={blockDef} blocks={baseBlocks} isBase />}>
-        <GrassBlockLayer blockDef={blockDef} blocks={baseBlocks} isBase />
-      </LayerErrorBoundary>
-    );
-  }
-
-  if (blockDef.texture) {
-    return (
-      <LayerErrorBoundary fallback={<ColoredBlockLayer blockDef={blockDef} blocks={baseBlocks} isBase />}>
-        <TexturedBlockLayer blockDef={blockDef} blocks={baseBlocks} isBase />
-      </LayerErrorBoundary>
-    );
-  }
-
-  return <ColoredBlockLayer blockDef={blockDef} blocks={baseBlocks} isBase />;
-});
-
-const BaseLayerGenerator: React.FC<{
-  enabled: boolean;
-  blockId: string;
-  size: number;
-}> = ({ enabled, blockId, size }) => {
-  const addBlock = useWorldStore((state) => state.addBlock);
-  const blocksMap = useWorldStore((state) => state.blocks);
-  useEffect(() => {
-    if (!enabled || !blockId || size <= 0) return;
-    const start = -Math.floor(size / 2);
-    const end = start + size - 1;
-    for (let x = start; x <= end; x++) {
-      for (let z = start; z <= end; z++) {
-        const key = `${x},${0.5},${z}`;
-        if (!blocksMap[key]) {
-          addBlock([x, 0.5, z], blockId, false);
-        }
-      }
-    }
-  }, [enabled, blockId, size]); 
-  return null;
-};
-
-export const VoxelGrid: React.FC<{
-  baseSettings?: { enabled: boolean; blockId: string; size: number };
-}> = ({ baseSettings }) => {
+export const VoxelGrid: React.FC = () => {
   const blocksMap = useWorldStore((s) => s.blocks);
   const palette = useWorldStore((s) => s.palette);
   const addBlock = useWorldStore((s) => s.addBlock);
