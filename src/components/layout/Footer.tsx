@@ -4,7 +4,7 @@ import { useLocation } from 'react-router-dom';
 export const Footer: React.FC = () => {
   const location = useLocation();
 
-  if (location.pathname === '/builder') {
+  if (location.pathname === '/builder' || location.pathname === '/dashboard') {
     return null;
   }
 

@@ -168,9 +168,9 @@ export const BuilderUI: React.FC<BuilderUIProps> = ({ baseSettings, setBaseSetti
 
   const tooltipAlign: 'top' | 'bottom' | 'left' | 'right' =
     toolbarDock === 'top'
-      ? 'top'
+      ? 'bottom'
       : toolbarDock === 'bottom'
-        ? 'bottom'
+        ? 'top'
         : toolbarDock === 'left'
           ? 'right'
           : 'left';
@@ -308,11 +308,11 @@ export const BuilderUI: React.FC<BuilderUIProps> = ({ baseSettings, setBaseSetti
     <div className="absolute inset-0 flex flex-col justify-between pointer-events-none">
       
       {/* Top Bar: Version Selector & Stats */}
-      <div className="flex items-center justify-between p-2 text-white pointer-events-auto bg-black/70 backdrop-blur-sm">
+      <div className="flex items-center justify-between px-4 py-3 text-white pointer-events-auto bg-slate-950/80 backdrop-blur-md border-b border-white/10 shadow-sm">
         <div className="flex items-center gap-4">
           <button 
             onClick={() => navigate('/dashboard')}
-            className="p-1.5 mr-2 text-gray-300 transition-colors rounded hover:bg-slate-700 hover:text-white"
+            className="p-2 mr-2 text-gray-400 transition-all rounded-lg hover:bg-white/10 hover:text-white active:scale-95"
             title="Back to Dashboard"
           >
             <ArrowLeft className="w-5 h-5" />
@@ -322,7 +322,7 @@ export const BuilderUI: React.FC<BuilderUIProps> = ({ baseSettings, setBaseSetti
             <select 
               value={minecraftVersion}
               onChange={(e) => setMinecraftVersion(e.target.value)}
-              className="px-2 py-1 text-sm border rounded bg-slate-800 border-slate-600 focus:outline-none focus:border-blue-500"
+              className="px-3 py-1.5 text-sm font-medium text-gray-200 border rounded-lg bg-white/5 border-white/10 focus:outline-none focus:border-violet-500 focus:ring-1 focus:ring-violet-500 transition-all cursor-pointer hover:bg-white/10"
               disabled={isLoadingPalette}
             >
               {availableVersions.length === 0 ? (
@@ -344,13 +344,13 @@ export const BuilderUI: React.FC<BuilderUIProps> = ({ baseSettings, setBaseSetti
           <button 
             onClick={handleManualSave}
             disabled={isSaving}
-            className="flex items-center gap-2 px-3 py-1 text-sm text-white transition-colors bg-green-600 rounded hover:bg-green-500 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="flex items-center gap-2 px-4 py-1.5 text-sm font-medium text-white transition-all bg-emerald-600 rounded-lg hover:bg-emerald-500 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-emerald-900/20 border border-emerald-500/20"
           >
             {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />} Save
           </button>
           <button
             onClick={() => setIsSettingsOpen(true)}
-            className="p-1.5 text-gray-300 transition-colors rounded hover:bg-slate-700 hover:text-white"
+            className="p-2 text-gray-400 transition-all rounded-lg hover:bg-white/10 hover:text-white active:rotate-90"
             title="Settings"
           >
             <Settings className="w-5 h-5" />
@@ -361,44 +361,46 @@ export const BuilderUI: React.FC<BuilderUIProps> = ({ baseSettings, setBaseSetti
       <div className="flex flex-1 overflow-hidden">
         {/* Left Sidebar: Block Palette */}
         <motion.div 
-          initial={{ width: 256 }}
-          animate={{ width: isSidebarOpen ? 256 : 0 }}
+          initial={{ width: 280 }}
+          animate={{ width: isSidebarOpen ? 280 : 0 }}
           transition={{ type: "spring", stiffness: 300, damping: 30 }}
-          className="flex flex-col overflow-hidden border-r pointer-events-auto bg-slate-900/90 backdrop-blur-md border-slate-700"
+          className="flex flex-col overflow-hidden border-r pointer-events-auto bg-slate-950/80 backdrop-blur-xl border-white/10"
         >
-          <div className="flex flex-col gap-3 p-4 border-b border-slate-700">
-            <div className="flex items-center gap-2">
-              <Box className="w-5 h-5 text-blue-400" />
-              <h2 className="font-bold text-white whitespace-nowrap">Block Palette</h2>
+          <div className="flex flex-col gap-4 p-5 border-b border-white/10 bg-gradient-to-b from-white/5 to-transparent">
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-lg bg-violet-500/10">
+                <Box className="w-5 h-5 text-violet-400" />
+              </div>
+              <h2 className="font-bold text-white whitespace-nowrap tracking-tight">Block Palette</h2>
             </div>
-            <div className="relative">
-              <Search className="absolute w-4 h-4 text-gray-400 transform -translate-y-1/2 left-2 top-1/2" />
+            <div className="relative group">
+              <Search className="absolute w-4 h-4 text-gray-500 transition-colors transform -translate-y-1/2 left-3 top-1/2 group-focus-within:text-violet-400" />
               <input 
                 type="text"
                 placeholder="Search blocks..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full py-1 pl-8 pr-2 text-sm text-white placeholder-gray-500 border rounded bg-slate-800 border-slate-600 focus:outline-none focus:border-blue-500"
+                className="w-full py-2 pl-9 pr-3 text-sm text-white placeholder-gray-600 transition-all border rounded-xl bg-black/20 border-white/10 focus:outline-none focus:border-violet-500/50 focus:ring-2 focus:ring-violet-500/20 focus:bg-black/40"
               />
             </div>
           </div>
           <div 
-            className="flex-1 p-2 space-y-1 overflow-y-auto custom-scrollbar"
+            className="flex-1 p-2 space-y-1 overflow-y-auto"
             onScroll={handleScroll}
           >
             {isLoadingPalette ? (
               <div className="flex justify-center p-4">
-                <Loader2 className="w-6 h-6 text-blue-400 animate-spin" />
+                <Loader2 className="w-6 h-6 text-violet-400 animate-spin" />
               </div>
             ) : (
             visibleBlocks.map((block) => (
               <button
                 key={block.id}
                 onClick={() => setSelectedBlock(block.id)}
-                className={`w-full flex items-center gap-3 p-2 rounded transition-all ${
+                className={`w-full flex items-center gap-3 p-2.5 rounded-xl transition-all border ${
                   selectedBlockId === block.id 
-                    ? 'bg-blue-600 text-white shadow-lg' 
-                    : 'text-gray-300 hover:bg-slate-800'
+                    ? 'bg-violet-600 text-white shadow-lg shadow-violet-900/20 border-violet-400/30 scale-[1.02]' 
+                    : 'text-gray-400 border-transparent hover:bg-white/5 hover:text-gray-200'
                 }`}
               >
                 {block.texture && !failedTextures[block.id] ? (
@@ -406,7 +408,7 @@ export const BuilderUI: React.FC<BuilderUIProps> = ({ baseSettings, setBaseSetti
                     src={block.texture} 
                     alt={block.name} 
                     onError={() => handleImageError(block.id)}
-                    className="object-cover w-8 h-8 border rounded shadow-sm border-white/20 pixelated"
+                    className="object-cover w-8 h-8 border rounded-md shadow-sm border-white/20 pixelated"
                     loading="lazy"
                   />
                 ) : (
@@ -456,7 +458,7 @@ export const BuilderUI: React.FC<BuilderUIProps> = ({ baseSettings, setBaseSetti
             <div ref={toolbarRef} className={`relative flex ${isVerticalDock ? 'flex-col' : 'flex-row'} items-center gap-2`}>
 
               <div 
-                className={`flex ${isVerticalDock ? 'flex-col' : 'flex-row'} items-center gap-1 bg-slate-900/70 rounded-lg p-1 border border-slate-600 backdrop-blur-md shadow-lg`}
+                className={`flex ${isVerticalDock ? 'flex-col' : 'flex-row'} items-center gap-1.5 bg-slate-950/70 rounded-2xl p-1.5 border border-white/10 backdrop-blur-xl shadow-2xl shadow-black/50`}
                 onPointerDown={startToolbarDrag}
               >
                 <button
@@ -489,7 +491,7 @@ export const BuilderUI: React.FC<BuilderUIProps> = ({ baseSettings, setBaseSetti
                         <motion.button
                       onClick={() => setSidebarOpen(!isSidebarOpen)}
                           onPointerDown={(e) => e.stopPropagation()}
-                          className={`relative p-2 rounded transition-colors ${isSidebarOpen ? 'bg-slate-700 text-white' : 'text-gray-300 hover:text-white hover:bg-slate-800/70'}`}
+                          className={`relative p-2.5 rounded-xl transition-all ${isSidebarOpen ? 'bg-white/10 text-white shadow-inner' : 'text-gray-400 hover:text-white hover:bg-white/5'}`}
                           type="button"
                           variants={toolButtonVariants}
                         >
@@ -510,7 +512,7 @@ export const BuilderUI: React.FC<BuilderUIProps> = ({ baseSettings, setBaseSetti
                         <motion.button
                           onClick={() => setTool('view')}
                           onPointerDown={(e) => e.stopPropagation()}
-                          className={`relative p-2 rounded transition-colors ${tool === 'view' ? 'bg-blue-600 text-white' : 'text-gray-300 hover:text-white hover:bg-slate-800/70'}`}
+                          className={`relative p-2.5 rounded-xl transition-all ${tool === 'view' ? 'bg-violet-600 text-white shadow-lg shadow-violet-500/30' : 'text-gray-400 hover:text-white hover:bg-white/5'}`}
                           type="button"
                           variants={toolButtonVariants}
                           exit="exit"
@@ -526,7 +528,7 @@ export const BuilderUI: React.FC<BuilderUIProps> = ({ baseSettings, setBaseSetti
                         <motion.button
                           onClick={() => setTool('build')}
                           onPointerDown={(e) => e.stopPropagation()}
-                          className={`relative p-2 rounded transition-colors ${tool === 'build' ? 'bg-blue-600 text-white' : 'text-gray-300 hover:text-white hover:bg-slate-800/70'}`}
+                          className={`relative p-2.5 rounded-xl transition-all ${tool === 'build' ? 'bg-violet-600 text-white shadow-lg shadow-violet-500/30' : 'text-gray-400 hover:text-white hover:bg-white/5'}`}
                           type="button"
                           variants={toolButtonVariants}
                           exit="exit"
@@ -542,7 +544,7 @@ export const BuilderUI: React.FC<BuilderUIProps> = ({ baseSettings, setBaseSetti
                         <motion.button
                           onClick={() => setTool('erase')}
                           onPointerDown={(e) => e.stopPropagation()}
-                          className={`relative p-2 rounded transition-colors ${tool === 'erase' ? 'bg-blue-600 text-white' : 'text-gray-300 hover:text-white hover:bg-slate-800/70'}`}
+                          className={`relative p-2.5 rounded-xl transition-all ${tool === 'erase' ? 'bg-violet-600 text-white shadow-lg shadow-violet-500/30' : 'text-gray-400 hover:text-white hover:bg-white/5'}`}
                           type="button"
                           variants={toolButtonVariants}
                           exit="exit"
@@ -558,7 +560,7 @@ export const BuilderUI: React.FC<BuilderUIProps> = ({ baseSettings, setBaseSetti
                         <motion.button
                       onClick={() => setMaterialListOpen(!isMaterialListOpen)}
                           onPointerDown={(e) => e.stopPropagation()}
-                          className={`relative p-2 rounded transition-colors ${isMaterialListOpen ? 'bg-slate-700 text-white' : 'text-gray-300 hover:text-white hover:bg-slate-800/70'}`}
+                          className={`relative p-2.5 rounded-xl transition-all ${isMaterialListOpen ? 'bg-white/10 text-white shadow-inner' : 'text-gray-400 hover:text-white hover:bg-white/5'}`}
                           type="button"
                           variants={toolButtonVariants}
                         >
@@ -572,7 +574,7 @@ export const BuilderUI: React.FC<BuilderUIProps> = ({ baseSettings, setBaseSetti
                 <button
                   onClick={toggleToolbarCollapsed}
                   onPointerDown={(e) => e.stopPropagation()}
-                  className="p-1.5 text-white/80 hover:text-white transition-colors rounded hover:bg-slate-700"
+                  className="p-2 text-white/60 hover:text-white transition-colors rounded-xl hover:bg-white/10"
                   title={toolbarCollapsed ? 'Apri toolbar' : 'Chiudi toolbar'}
                   type="button"
                 >
@@ -586,14 +588,16 @@ export const BuilderUI: React.FC<BuilderUIProps> = ({ baseSettings, setBaseSetti
 
         {/* Right Sidebar: Block Counter */}
         <motion.div 
-          initial={{ width: 256 }}
-          animate={{ width: isMaterialListOpen ? 256 : 0 }}
+          initial={{ width: 280 }}
+          animate={{ width: isMaterialListOpen ? 280 : 0 }}
           transition={{ type: "spring", stiffness: 300, damping: 30 }}
-          className="flex flex-col overflow-hidden border-l pointer-events-auto bg-slate-900/80 backdrop-blur-md border-slate-700"
+          className="flex flex-col overflow-hidden border-l pointer-events-auto bg-slate-950/80 backdrop-blur-xl border-white/10"
         >
-          <div className="flex items-center gap-2 p-4 border-b border-slate-700">
-            <Layers className="w-5 h-5 text-green-400" />
-            <h2 className="font-bold text-white">Material List</h2>
+          <div className="flex items-center gap-3 p-5 border-b border-white/10 bg-gradient-to-b from-white/5 to-transparent">
+            <div className="p-2 rounded-lg bg-emerald-500/10">
+              <Layers className="w-5 h-5 text-emerald-400" />
+            </div>
+            <h2 className="font-bold text-white tracking-tight">Material List</h2>
           </div>
           <div className="flex-1 p-2 overflow-y-auto">
             {Object.keys(blockCounts).length === 0 ? (
@@ -606,7 +610,7 @@ export const BuilderUI: React.FC<BuilderUIProps> = ({ baseSettings, setBaseSetti
                   const isHidden = hiddenBlockIds.includes(type);
                   
                   return (
-                    <li key={type} className={`flex items-center justify-between p-2 border rounded border-slate-700 transition-colors ${isHidden ? 'bg-slate-800/30 opacity-60' : 'bg-slate-800/50'}`}>
+                    <li key={type} className={`flex items-center justify-between p-2.5 border rounded-xl border-white/5 transition-all ${isHidden ? 'bg-white/5 opacity-50' : 'bg-white/5 hover:bg-white/10 hover:border-white/10'}`}>
                       <div className="flex items-center gap-2 overflow-hidden">
                         {blockInfo.texture && !failedTextures[blockInfo.id] ? (
                           <img 
@@ -634,7 +638,7 @@ export const BuilderUI: React.FC<BuilderUIProps> = ({ baseSettings, setBaseSetti
                         >
                           {isHidden ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
                         </button>
-                        <span className="font-mono text-sm font-bold text-blue-400 min-w-[24px] text-right">x{count}</span>
+                        <span className="font-mono text-sm font-bold text-violet-400 min-w-[24px] text-right">x{count}</span>
                       </div>
                     </li>
                   );
@@ -658,7 +662,7 @@ export const BuilderUI: React.FC<BuilderUIProps> = ({ baseSettings, setBaseSetti
               initial={{ scale: 0.95, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.95, opacity: 0 }}
-              className="w-full max-w-sm p-6 border rounded-lg shadow-2xl bg-slate-900 border-slate-700"
+              className="w-full max-w-sm p-6 border shadow-2xl rounded-2xl bg-slate-950/95 border-white/10 backdrop-blur-xl"
               onClick={(e) => e.stopPropagation()}
             >
               <div className="flex items-center justify-between mb-4">
@@ -674,7 +678,7 @@ export const BuilderUI: React.FC<BuilderUIProps> = ({ baseSettings, setBaseSetti
                   <label className="text-sm font-medium text-gray-300">Shadows</label>
                   <button
                     onClick={() => updateSettings({ shadows: !settings.shadows })}
-                    className={`w-11 h-6 rounded-full transition-colors relative ${settings.shadows ? 'bg-blue-600' : 'bg-slate-700'}`}
+                    className={`w-11 h-6 rounded-full transition-colors relative ${settings.shadows ? 'bg-violet-600 shadow-lg shadow-violet-500/30' : 'bg-slate-700'}`}
                   >
                     <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-all shadow-sm ${settings.shadows ? 'left-6' : 'left-1'}`} />
                   </button>
@@ -686,7 +690,7 @@ export const BuilderUI: React.FC<BuilderUIProps> = ({ baseSettings, setBaseSetti
                   <select
                     value={settings.timePreset}
                     onChange={(e) => updateSettings({ timePreset: e.target.value as 'day' | 'night' })}
-                    className="px-2 py-1 text-sm text-white border rounded bg-slate-800 border-slate-600 focus:outline-none focus:border-blue-500 disabled:opacity-50"
+                    className="px-3 py-1.5 text-sm text-white border rounded-lg bg-white/5 border-white/10 focus:outline-none focus:border-violet-500 focus:ring-1 focus:ring-violet-500 disabled:opacity-50"
                   >
                     <option value="day">Day</option>
                     <option value="night">Night</option>
@@ -698,7 +702,7 @@ export const BuilderUI: React.FC<BuilderUIProps> = ({ baseSettings, setBaseSetti
                   <label className="text-sm font-medium text-gray-300">Show Grid</label>
                   <button
                     onClick={() => updateSettings({ showGrid: !settings.showGrid })}
-                    className={`w-11 h-6 rounded-full transition-colors relative ${settings.showGrid ? 'bg-blue-600' : 'bg-slate-700'}`}
+                    className={`w-11 h-6 rounded-full transition-colors relative ${settings.showGrid ? 'bg-violet-600 shadow-lg shadow-violet-500/30' : 'bg-slate-700'}`}
                   >
                     <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-all shadow-sm ${settings.showGrid ? 'left-6' : 'left-1'}`} />
                   </button>
@@ -716,7 +720,7 @@ export const BuilderUI: React.FC<BuilderUIProps> = ({ baseSettings, setBaseSetti
                     max="110"
                     value={settings.fov}
                     onChange={(e) => updateSettings({ fov: parseInt(e.target.value) })}
-                    className="w-full h-1.5 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-blue-500"
+                    className="w-full h-1.5 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-violet-500"
                   />
                 </div>
 
@@ -733,7 +737,7 @@ export const BuilderUI: React.FC<BuilderUIProps> = ({ baseSettings, setBaseSetti
                     step="0.1"
                     value={settings.mouseSensitivity}
                     onChange={(e) => updateSettings({ mouseSensitivity: parseFloat(e.target.value) })}
-                    className="w-full h-1.5 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-blue-500"
+                    className="w-full h-1.5 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-violet-500"
                   />
                 </div>
 
@@ -745,7 +749,7 @@ export const BuilderUI: React.FC<BuilderUIProps> = ({ baseSettings, setBaseSetti
                     <div className="flex gap-2">
                        <button 
                          onClick={() => setBaseSettings(s => ({ ...s, blockId: selectedBlockId }))}
-                         className="px-2 py-1 text-xs text-white bg-blue-600 rounded hover:bg-blue-500"
+                         className="px-2.5 py-1.5 text-xs font-medium text-white bg-violet-600 rounded-lg hover:bg-violet-500 shadow-lg shadow-violet-500/20"
                        >
                          Set to Selected ({palette.find(b => b.id === selectedBlockId)?.name || selectedBlockId})
                        </button>
@@ -762,7 +766,7 @@ export const BuilderUI: React.FC<BuilderUIProps> = ({ baseSettings, setBaseSetti
                         <button
                           key={s}
                           onClick={() => setBaseSettings((prev) => ({ ...prev, size: s }))}
-                          className={`px-2 py-1 text-xs rounded border ${baseSettings.size === s ? 'bg-blue-600 text-white border-blue-500' : 'bg-slate-800 text-gray-200 border-slate-700 hover:bg-slate-700'}`}
+                          className={`px-2 py-1 text-xs rounded-lg border transition-all ${baseSettings.size === s ? 'bg-violet-600 text-white border-violet-500 shadow-md shadow-violet-500/20' : 'bg-white/5 text-gray-300 border-white/10 hover:bg-white/10'}`}
                         >
                           {s}x{s}
                         </button>
@@ -774,7 +778,7 @@ export const BuilderUI: React.FC<BuilderUIProps> = ({ baseSettings, setBaseSetti
                     <button
                       onClick={() => applyBaseLayer(baseSettings.blockId, baseSettings.size)}
                       disabled={isBatchGenerating}
-                      className={`flex items-center gap-2 px-3 py-1 text-sm rounded ${isBatchGenerating ? 'bg-slate-700 text-gray-300 cursor-not-allowed' : 'bg-blue-600 text-white hover:bg-blue-500'}`}
+                      className={`flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg transition-all ${isBatchGenerating ? 'bg-slate-800 text-gray-400 cursor-not-allowed' : 'bg-violet-600 text-white hover:bg-violet-500 shadow-lg shadow-violet-500/20 active:scale-95'}`}
                     >
                       {isBatchGenerating ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
                       {isBatchGenerating ? 'Generating...' : 'Generate Base'}

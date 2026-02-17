@@ -6,6 +6,7 @@ import { RegisterPage } from '../pages/Auth/RegisterPage';
 import { DashboardPage } from '../pages/Dashboard/DashboardPage';
 import { BuilderPage } from '../pages/Builder/BuilderPage';
 import { useAuthStore } from '../store/authStore';
+import ErrorPage from '../pages/Errors/ErrorPage';
 import type { JSX } from 'react';
 
 // Protected Route Wrapper
@@ -41,6 +42,16 @@ export const router = createBrowserRouter([
           </ProtectedRoute>
         ),
       },
+      {
+        path: 'error',
+        element: <ErrorPage />,
+      },
+      {
+        path: '/profile',
+        element: ( 
+          <Navigate to="/" replace />
+        )
+      }
     ],
   },
 ]);

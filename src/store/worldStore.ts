@@ -18,6 +18,7 @@ export interface WorldSettings {
 }
 
 interface WorldState {
+  projectName: string;
   blocks: Record<string, BlockData>;
   history: HistoryState;
   selectedBlockId: string;
@@ -46,6 +47,7 @@ interface WorldState {
   applyBaseLayer: (blockId: string, size: number) => void;
   baseLayerApplied: boolean;
   baseLayerConfig?: { blockId: string; size: number };
+  createProject: (name: string, version: string, settings: Partial<WorldSettings>) => void;
   resetWorld: () => void;
   setSelectedBlock: (id: string) => void;
   setMinecraftVersion: (version: string) => Promise<void>;
@@ -75,6 +77,7 @@ const SPECIAL_BLOCKS: BlockDefinition[] = [
 export const useWorldStore = create<WorldState>()(
   persist(
     (set, get) => ({
+      projectName: 'Untitled Project',
       blocks: {},
       history: { past: [], future: [] },
       selectedBlockId: 'grass_block',
@@ -115,6 +118,24 @@ export const useWorldStore = create<WorldState>()(
             : [...state.hiddenBlockIds, blockType]
         };
       }),
+      createProject: (name, version, initialSettings) => {
+        // 1. Resetta tutto lo stato
+        set({
+          projectName: name,
+          minecraftVersion: version,
+          blocks: {},
+          history: { past: [], future: [] },
+          baseLayerApplied: false,
+          baseLayerConfig: undefined,
+          settings: {
+            ...get().settings,
+            ...initialSettings
+          }
+        });
+        
+        // 2. Carica la palette per la nuova versione
+        get().setMinecraftVersion(version);
+      },
       applyBaseLayer: (blockId, size) =>
         set(() => {
           const add = useWorldStore.getState().addBlock;
@@ -237,6 +258,7 @@ export const useWorldStore = create<WorldState>()(
           };
         }),
       resetWorld: () => set((state) => ({
+        projectName: 'Untitled Project',
         blocks: {},
         history: {
           past: [...state.history.past, state.blocks].slice(-MAX_HISTORY),
@@ -296,6 +318,7 @@ export const useWorldStore = create<WorldState>()(
       version: 6,
       partialize: (state) => ({
         blocks: state.blocks,
+        projectName: state.projectName,
         selectedBlockId: state.selectedBlockId,
         minecraftVersion: state.minecraftVersion,
         availableVersions: state.availableVersions,

@@ -10,7 +10,7 @@ export const Navbar: React.FC = () => {
   const location = useLocation();
 
   // Nascondi la Navbar se siamo nell'editor (route /builder)
-  if (location.pathname === '/builder') {
+  if (location.pathname === '/builder' || location.pathname === '/dashboard') {
     return null;
   }
 

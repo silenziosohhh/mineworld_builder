@@ -7,7 +7,7 @@ const __dirname = path.dirname(__filename);
 
 const app = express();
 
-// Porta su cui girerà il server (default 3000, o quella passata da PM2/Env)
+// Porta su cui girerà il server (default 9054, o quella passata da PM2/Env)
 const PORT = process.env.PORT || 9054;
 
 // Percorso della cartella di build.

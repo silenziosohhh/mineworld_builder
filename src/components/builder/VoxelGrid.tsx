@@ -34,6 +34,41 @@ function snapBasePos(pos: Vector3Tuple): Vector3Tuple {
   return [Math.round(x), -0.5, Math.round(z)];
 }
 
+const lightConfig: Record<string, { color: string; intensity: number; distance: number; offsets: number[] }> = {
+  // Level 15 (Max Light)
+  sea_lantern: { color: '#e5ffff', intensity: 2.0, distance: 15, offsets: [0.6, -0.6] },
+  glowstone: { color: '#ffdd66', intensity: 2.0, distance: 15, offsets: [0.6, -0.6] },
+  shroomlight: { color: '#ffb366', intensity: 2.0, distance: 15, offsets: [0.6, -0.6] },
+  jack_o_lantern: { color: '#ffaa00', intensity: 2.0, distance: 15, offsets: [0.6, -0.6] },
+  beacon: { color: '#aaffff', intensity: 2.0, distance: 15, offsets: [0.6, -0.6] },
+  lantern: { color: '#ffd966', intensity: 2.0, distance: 15, offsets: [0.2] },
+  fire: { color: '#ffaa00', intensity: 2.0, distance: 15, offsets: [0.2] },
+  lava: { color: '#ff6600', intensity: 2.0, distance: 15, offsets: [0.6, -0.6] },
+  stationary_lava: { color: '#ff6600', intensity: 2.0, distance: 15, offsets: [0.6, -0.6] },
+  campfire: { color: '#ffaa00', intensity: 2.0, distance: 15, offsets: [0.2] },
+  froglight: { color: '#e5ffff', intensity: 2.0, distance: 15, offsets: [0.6, -0.6] },
+  ochre_froglight: { color: '#ffdd66', intensity: 2.0, distance: 15, offsets: [0.6, -0.6] },
+  pearlescent_froglight: { color: '#e5ffff', intensity: 2.0, distance: 15, offsets: [0.6, -0.6] },
+  verdant_froglight: { color: '#ccffcc', intensity: 2.0, distance: 15, offsets: [0.6, -0.6] },
+
+  // Level 14
+  torch: { color: '#ffd966', intensity: 1.8, distance: 14, offsets: [0.2] },
+  end_rod: { color: '#ffffff', intensity: 1.8, distance: 14, offsets: [0.2] },
+
+  // Level 10
+  soul_lantern: { color: '#33ffff', intensity: 1.2, distance: 10, offsets: [0.2] },
+  soul_torch: { color: '#33ffff', intensity: 1.2, distance: 10, offsets: [0.2] },
+  soul_campfire: { color: '#33ffff', intensity: 1.2, distance: 10, offsets: [0.2] },
+  crying_obsidian: { color: '#d023d9', intensity: 1.2, distance: 10, offsets: [0.6, -0.6] },
+
+  // Level 7
+  redstone_torch: { color: '#ff0000', intensity: 0.8, distance: 7, offsets: [0.2] },
+  amethyst_cluster: { color: '#d8b1ff', intensity: 0.8, distance: 7, offsets: [0.2] },
+
+  // Level 3
+  magma_block: { color: '#ff6600', intensity: 0.4, distance: 3, offsets: [0.6, -0.6] },
+};
+
 interface GridBlockProps {
   position: Vector3Tuple;
   color?: string;
@@ -114,7 +149,9 @@ const TexturedBlockLayer: React.FC<{
   blocks: BlockData[];
   isBase?: boolean;
   geometry?: THREE.BufferGeometry;
-}> = ({ blockDef, blocks, isBase, geometry }) => {
+  materialProps?: any;
+  castShadow?: boolean;
+}> = ({ blockDef, blocks, isBase, geometry, materialProps, castShadow = true }) => {
   if (!blockDef.texture || blocks.length === 0) return null;
 
   const texture = useTexture(blockDef.texture, (tex) => {
@@ -123,9 +160,23 @@ const TexturedBlockLayer: React.FC<{
     tex.colorSpace = THREE.SRGBColorSpace;
   });
 
+  // Se è una fonte di luce, usiamo la texture come emissiveMap.
+  // Questo fa sì che il blocco brilli mantenendo i dettagli della texture (es. il legno della torcia o i disegni della lanterna)
+  // invece di diventare un blocco piatto monocolore.
+  const finalMaterialProps = useMemo(() => {
+    if (materialProps?.emissive) {
+      return {
+        ...materialProps,
+        emissive: 'white', // Bianco per esaltare i colori originali della texture
+        emissiveMap: texture,
+      };
+    }
+    return materialProps;
+  }, [materialProps, texture]);
+
   return (
-    <Instances range={blocks.length} geometry={geometry || boxGeometry} castShadow receiveShadow>
-      <meshStandardMaterial map={texture} color="white" transparent={blockDef.id === 'torch' || blockDef.id === 'glass'} opacity={blockDef.id === 'glass' ? 0.3 : 1} alphaTest={0.1} />
+    <Instances range={blocks.length} geometry={geometry || boxGeometry} castShadow={castShadow} receiveShadow>
+      <meshStandardMaterial map={texture} color="white" transparent={blockDef.id === 'torch' || blockDef.id === 'glass'} opacity={blockDef.id === 'glass' ? 0.3 : 1} alphaTest={0.1} {...finalMaterialProps} />
       {blocks.map((b) => (
         <GridBlock key={b.id} position={b.position as Vector3Tuple} isBase={isBase} blockId={blockDef.id} />
       ))}
@@ -138,12 +189,14 @@ const ColoredBlockLayer: React.FC<{
   blocks: BlockData[];
   isBase?: boolean;
   geometry?: THREE.BufferGeometry;
-}> = ({ blockDef, blocks, isBase, geometry }) => {
+  materialProps?: any;
+  castShadow?: boolean;
+}> = ({ blockDef, blocks, isBase, geometry, materialProps, castShadow = true }) => {
   if (blocks.length === 0) return null;
 
   return (
-    <Instances range={blocks.length} geometry={geometry || boxGeometry} castShadow receiveShadow>
-      <meshStandardMaterial color="white" />
+    <Instances range={blocks.length} geometry={geometry || boxGeometry} castShadow={castShadow} receiveShadow>
+      <meshStandardMaterial color="white" {...materialProps} />
       {blocks.map((b) => (
         <GridBlock
           key={b.id}
@@ -220,6 +273,17 @@ export const VoxelGrid: React.FC = () => {
   const settings = useWorldStore((s) => s.settings);
   const hiddenBlockIds = useWorldStore((s) => s.hiddenBlockIds);
 
+  // Mappa delle posizioni occupate per calcolare l'occlusione della luce
+  const occupiedBlocks = useMemo(() => {
+    const map = new Map<string, string>();
+    Object.values(blocksMap).forEach((b) => {
+      if (b.type === '_base_empty') return;
+      const [x, y, z] = b.position;
+      map.set(`${Math.round(x)},${Math.round(y)},${Math.round(z)}`, b.type);
+    });
+    return map;
+  }, [blocksMap]);
+
   const blocksByType = useMemo(() => {
     const groups: Record<string, BlockData[]> = {};
 
@@ -249,7 +313,8 @@ export const VoxelGrid: React.FC = () => {
     addBlock([x, 0.5, z]);
   };
 
-  return ( <group>
+  return (
+    <group>
 
       {Object.entries(blocksByType).map(([type, blocks]) => {
         const blockDef = palette.find((b) => b.id === type);
@@ -259,6 +324,15 @@ export const VoxelGrid: React.FC = () => {
         let customGeometry = boxGeometry;
         if (type === 'torch') customGeometry = torchGeometry;
         else if (type.includes('stairs') || type.includes('slab')) customGeometry = slabGeometry;
+
+        const lightInfo = lightConfig[type];
+        const isLightSource = !!lightInfo;
+
+        const materialProps = isLightSource ? { 
+          emissive: lightInfo.color, 
+          emissiveIntensity: 3, // Aumentato per rendere il blocco visivamente molto luminoso (effetto glow)
+          toneMapped: false 
+        } : undefined;
 
         if (type === 'grass_block' && blockDef.texture) {
           return (
@@ -271,18 +345,67 @@ export const VoxelGrid: React.FC = () => {
           );
         }
 
+        let layer;
         if (blockDef.texture) {
-          return (
+          layer = (
             <LayerErrorBoundary
               key={type}
-              fallback={<ColoredBlockLayer blockDef={blockDef} blocks={blocks} geometry={customGeometry} />}
+              fallback={<ColoredBlockLayer blockDef={blockDef} blocks={blocks} geometry={customGeometry} materialProps={materialProps} castShadow={!isLightSource} />}
             >
-              <TexturedBlockLayer blockDef={blockDef} blocks={blocks} geometry={customGeometry} />
+              <TexturedBlockLayer blockDef={blockDef} blocks={blocks} geometry={customGeometry} materialProps={materialProps} castShadow={!isLightSource} />
             </LayerErrorBoundary>
+          );
+        } else {
+          layer = <ColoredBlockLayer key={type} blockDef={blockDef} blocks={blocks} geometry={customGeometry} materialProps={materialProps} castShadow={!isLightSource} />;
+        }
+
+        if (isLightSource) {
+          return (
+            <group key={type}>
+              {layer}
+              {blocks.map((b) => (
+                <group key={`lights-${b.id}`}>
+                  {lightInfo.offsets.map((offset, i) => {
+                    // Calcola la posizione del blocco adiacente nella direzione della luce
+                    const dy = offset > 0 ? 1 : -1;
+                    const nx = Math.round(b.position[0]);
+                    const ny = Math.round(b.position[1]) + dy;
+                    const nz = Math.round(b.position[2]);
+                    
+                    // Controlla se c'è un blocco che ostruisce
+                    const neighborId = occupiedBlocks.get(`${nx},${ny},${nz}`);
+                    if (neighborId) {
+                      // Se il blocco vicino NON è trasparente, non renderizzare la luce
+                      const isTransp = neighborId.includes('glass') || 
+                                       neighborId.includes('leaves') || 
+                                       neighborId.includes('slab') || 
+                                       neighborId.includes('stairs') ||
+                                       neighborId.includes('fence') ||
+                                       neighborId.includes('torch') ||
+                                       neighborId === 'water' ||
+                                       neighborId === 'ice' ||
+                                       neighborId === 'beacon';
+                      if (!isTransp) return null;
+                    }
+
+                    return (
+                      <pointLight
+                        key={`light-${i}`}
+                        position={[b.position[0], b.position[1] + offset, b.position[2]]}
+                        intensity={lightInfo.intensity}
+                        distance={lightInfo.distance}
+                        decay={1}
+                        color={lightInfo.color}
+                      />
+                    );
+                  })}
+                </group>
+              ))}
+            </group>
           );
         }
 
-        return <ColoredBlockLayer key={type} blockDef={blockDef} blocks={blocks} geometry={customGeometry} />;
+        return layer;
       })}
 
       <mesh
